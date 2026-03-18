@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -14,15 +15,27 @@ const maxPayloadBytes = 25 * 1024 * 1024 // 25 MiB
 // Compile-time guard: WebhookHandler must satisfy http.Handler.
 var _ http.Handler = (*WebhookHandler)(nil)
 
+// supportedEvents is the set of GitHub event types this handler acts on.
+// All other events are acknowledged with 200 OK but not processed.
+var supportedEvents = map[string]bool{
+	"push": true,
+}
+
+// Dispatcher receives a validated push event and runs the job asynchronously.
+type Dispatcher interface {
+	Dispatch(ctx context.Context, event provider.WebhookEvent)
+}
+
 // WebhookHandler handles POST /internal/webhooks/github.
 // It validates the HMAC-SHA256 signature before any processing.
 type WebhookHandler struct {
-	validator provider.WebhookValidator
+	validator  provider.WebhookValidator
+	dispatcher Dispatcher
 }
 
-// NewWebhookHandler constructs a WebhookHandler with the given validator.
-func NewWebhookHandler(v provider.WebhookValidator) *WebhookHandler {
-	return &WebhookHandler{validator: v}
+// NewWebhookHandler constructs a WebhookHandler with the given validator and dispatcher.
+func NewWebhookHandler(v provider.WebhookValidator, d Dispatcher) *WebhookHandler {
+	return &WebhookHandler{validator: v, dispatcher: d}
 }
 
 func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -45,8 +58,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: pass r.Header.Get("X-GitHub-Event") for event routing once WebhookEvent.EventType is populated
-	event, err := h.validator.ValidateWebhook(r.Context(), body, signature)
+	event, err := h.validator.ValidateWebhook(r.Context(), body, signature, r.Header.Get("X-GitHub-Event"))
 	if errors.Is(err, provider.ErrInvalidSignature) {
 		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
@@ -56,7 +68,11 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: dispatch event downstream (job dedup, Cloud Tasks)
-	_ = event
+	if !supportedEvents[event.EventType] {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	h.dispatcher.Dispatch(context.Background(), event)
 	w.WriteHeader(http.StatusOK)
 }
