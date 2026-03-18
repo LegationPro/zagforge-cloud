@@ -14,6 +14,7 @@ func notSetErr(envVar string) error {
 type Config struct {
 	App    *AppConfig
 	Server *ServerConfig
+	Worker *WorkerConfig
 }
 
 func Load() (*Config, error) {
@@ -38,5 +39,9 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Config{App: app, Server: server}, nil
+	worker, err := LoadWorkerConfig()
+	if err != nil {
+		return nil, err
+	}
+	return &Config{App: app, Server: server, Worker: worker}, nil
 }
