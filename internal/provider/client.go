@@ -129,10 +129,10 @@ func (h *ClientHandler) generateAppJWT() (string, error) {
 		return "", fmt.Errorf("failed to parse private key: %w", err)
 	}
 
-	now := time.Now()
+	iat := time.Now().Add(-60 * time.Second)
 	claims := jwt.RegisteredClaims{
-		IssuedAt:  jwt.NewNumericDate(now.Add(-60 * time.Second)),
-		ExpiresAt: jwt.NewNumericDate(now.Add(10 * time.Minute)),
+		IssuedAt:  jwt.NewNumericDate(iat),
+		ExpiresAt: jwt.NewNumericDate(iat.Add(10 * time.Minute)),
 		Issuer:    strconv.FormatInt(h.client.appID, 10),
 	}
 
