@@ -1,0 +1,8 @@
+FROM golang:1.26.1-alpine AS build
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates
+COPY --from=build /go/bin/migrate /usr/local/bin/migrate
+COPY api/internal/db/migrations /migrations
+ENTRYPOINT ["migrate", "-path", "/migrations"]
