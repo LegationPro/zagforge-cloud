@@ -46,6 +46,12 @@ services:
       GITHUB_APP_ID: ${GITHUB_APP_ID}
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
       GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
     depends_on:
       postgres:
         condition: service_healthy
