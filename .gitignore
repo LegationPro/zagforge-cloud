@@ -1,7 +1,5 @@
 .env
 .secret/
 .bin/
-.claude
 .cache
-docs
 zigzag-reports
