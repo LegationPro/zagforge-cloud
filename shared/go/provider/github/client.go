@@ -168,6 +168,14 @@ func (h *ClientHandler) ListRepos(ctx context.Context, installationID int64) ([]
 		if err != nil {
 			return nil, fmt.Errorf("list repos: %w", err)
 		}
+		
+		defer func() {
+			err = resp.Body.Close()
+			if err != nil {
+				
+			}
+		}()
+		
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {

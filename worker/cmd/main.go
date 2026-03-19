@@ -31,7 +31,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("init logger: %w", err)
 	}
-	defer log.Sync()
+	defer func() { _ = log.Sync() }()
 
 	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
@@ -46,7 +46,7 @@ func run() error {
 		return fmt.Errorf("create API client: %w", err)
 	}
 
-	ch, err := githubprovider.NewClientHandler(client)
+	ch, err := githubprovider.NewClientHandler(client, log)
 	if err != nil {
 		return fmt.Errorf("create client handler: %w", err)
 	}
