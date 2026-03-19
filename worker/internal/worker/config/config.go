@@ -4,20 +4,25 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
 
-const defaultJobTimeout = 5 * time.Minute
+const (
+	defaultJobTimeout     = 5 * time.Minute
+	defaultMaxConcurrency = 5
+)
 
 type Config struct {
-	DatabaseURL  string
-	AppEnv       string
-	WorkspaceDir string
-	ZigzagBin    string
-	ReportsDir   string
-	JobTimeout   time.Duration
-	GitHub       GitHubConfig
+	DatabaseURL    string
+	AppEnv         string
+	WorkspaceDir   string
+	ZigzagBin      string
+	ReportsDir     string
+	JobTimeout     time.Duration
+	MaxConcurrency int
+	GitHub         GitHubConfig
 }
 
 type GitHubConfig struct {
@@ -73,13 +78,23 @@ func LoadConfig() (*Config, error) {
 		jobTimeout = d
 	}
 
+	maxConcurrency := defaultMaxConcurrency
+	if raw := os.Getenv("MAX_CONCURRENCY"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("invalid MAX_CONCURRENCY: %q", raw)
+		}
+		maxConcurrency = n
+	}
+
 	return &Config{
-		DatabaseURL:  dbURL,
-		AppEnv:       os.Getenv("APP_ENV"),
-		WorkspaceDir: workspaceDir,
-		ZigzagBin:    zigzagBin,
-		ReportsDir:   reportsDir,
-		JobTimeout:   jobTimeout,
+		DatabaseURL:    dbURL,
+		AppEnv:         os.Getenv("APP_ENV"),
+		WorkspaceDir:   workspaceDir,
+		ZigzagBin:      zigzagBin,
+		ReportsDir:     reportsDir,
+		JobTimeout:     jobTimeout,
+		MaxConcurrency: maxConcurrency,
 		GitHub: GitHubConfig{
 			AppID:         appID,
 			PrivateKey:    []byte(ghKey),

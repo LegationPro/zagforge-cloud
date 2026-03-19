@@ -9,15 +9,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/clerk/clerk-sdk-go/v2"
+	"go.uber.org/zap"
+
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/config"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/service"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/logger"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/router"
-
 	githubprovider "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
-	"go.uber.org/zap"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/router"
 )
 
 func run() error {
@@ -50,6 +52,8 @@ func run() error {
 		return fmt.Errorf("create client handler: %w", err)
 	}
 
+	clerk.SetKey(c.App.ClerkSecretKey)
+
 	svc := service.NewJobService(database, log)
 	wh := handler.NewWebhookHandler(ch, svc, log)
 	health := handler.NewHealthHandler(pool)
@@ -73,6 +77,7 @@ func run() error {
 	}
 
 	v1 := r.Group()
+	v1.Use(middleware.Auth(log))
 	if err := v1.Create([]router.Subroute{
 		{Method: router.GET, Path: "/api/v1/repos/{repoID}", Handler: api.GetRepo},
 		{Method: router.GET, Path: "/api/v1/repos/{repoID}/jobs", Handler: api.ListJobs},

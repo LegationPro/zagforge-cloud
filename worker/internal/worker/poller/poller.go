@@ -23,26 +23,31 @@ type JobClaimer interface {
 
 // Poller claims queued jobs from the database and dispatches them for execution.
 type Poller struct {
-	claimer  JobClaimer
-	runner   *runner.Runner
-	executor *executor.Executor
-	log      *zap.Logger
-	interval time.Duration
+	claimer        JobClaimer
+	runner         *runner.Runner
+	executor       *executor.Executor
+	log            *zap.Logger
+	interval       time.Duration
+	maxConcurrency int
 }
 
-func NewPoller(claimer JobClaimer, runner *runner.Runner, executor *executor.Executor, log *zap.Logger, interval time.Duration) *Poller {
+func NewPoller(claimer JobClaimer, runner *runner.Runner, executor *executor.Executor, log *zap.Logger, interval time.Duration, maxConcurrency int) *Poller {
 	return &Poller{
-		claimer:  claimer,
-		runner:   runner,
-		executor: executor,
-		log:      log,
-		interval: interval,
+		claimer:        claimer,
+		runner:         runner,
+		executor:       executor,
+		log:            log,
+		interval:       interval,
+		maxConcurrency: maxConcurrency,
 	}
 }
 
 // Run starts the poll loop. It blocks until ctx is cancelled, then drains in-flight jobs.
 func (p *Poller) Run(ctx context.Context) error {
-	p.log.Info("worker started, polling for jobs", zap.Duration("interval", p.interval))
+	p.log.Info("worker started",
+		zap.Duration("interval", p.interval),
+		zap.Int("max_concurrency", p.maxConcurrency),
+	)
 
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
@@ -57,18 +62,35 @@ func (p *Poller) Run(ctx context.Context) error {
 			p.log.Info("worker stopped")
 			return nil
 		case <-ticker.C:
-			if err := p.poll(ctx); err != nil {
-				p.log.Error("poll error", zap.Error(err))
-			}
+			p.pollBatch(ctx)
 		}
 	}
 }
 
-func (p *Poller) poll(ctx context.Context) error {
+// pollBatch claims jobs up to the number of free slots in the pool.
+func (p *Poller) pollBatch(ctx context.Context) {
+	slots := int64(p.maxConcurrency) - p.runner.InFlight()
+	for range slots {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := p.claimOne(ctx); err != nil {
+			if err == errNoJobs {
+				return // queue empty, stop claiming
+			}
+			p.log.Error("poll error", zap.Error(err))
+			return
+		}
+	}
+}
+
+var errNoJobs = fmt.Errorf("no queued jobs")
+
+func (p *Poller) claimOne(ctx context.Context) error {
 	job, err := p.claimer.ClaimJob(ctx)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil
+			return errNoJobs
 		}
 		return fmt.Errorf("claim job: %w", err)
 	}
@@ -90,6 +112,7 @@ func (p *Poller) poll(ctx context.Context) error {
 		zap.String("repo", repo.FullName),
 		zap.String("branch", job.Branch),
 		zap.String("commit", job.CommitSha),
+		zap.Int64("in_flight", p.runner.InFlight()),
 	)
 
 	p.runner.GoWait(func() {

@@ -10,6 +10,7 @@ type AppConfig struct {
 	GithubAppID            int64
 	GithubAppPrivateKey    string
 	GithubAppWebhookSecret string
+	ClerkSecretKey         string
 }
 
 func LoadAppConfig() (*AppConfig, error) {
@@ -35,9 +36,15 @@ func LoadAppConfig() (*AppConfig, error) {
 	// Env vars often store PEM keys with literal \n instead of real newlines.
 	privateKeyStr = strings.ReplaceAll(privateKeyStr, `\n`, "\n")
 
+	clerkKey := os.Getenv("CLERK_SECRET_KEY")
+	if clerkKey == "" {
+		return nil, notSetErr("CLERK_SECRET_KEY")
+	}
+
 	return &AppConfig{
 		GithubAppID:            appID,
 		GithubAppPrivateKey:    privateKeyStr,
 		GithubAppWebhookSecret: webhookSecret,
+		ClerkSecretKey:         clerkKey,
 	}, nil
 }
