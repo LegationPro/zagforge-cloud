@@ -117,13 +117,13 @@ func run() error {
 		return fmt.Errorf("register callback routes: %w", err)
 	}
 
-	// API v1 — auth + rate limited by user ID (or IP if unauthenticated).
+	// API v1 — auth first (rejects unauthenticated), then rate limit by user ID.
 	v1 := r.Group()
+	v1.Use(auth.Auth(log))
 	v1.Use(ratelimit.RateLimit(rdb, ratelimit.RateLimitConfig{
 		MaxRequests: 60,
 		Window:      1 * time.Minute,
 	}, "api", log))
-	v1.Use(auth.Auth(log))
 	if err := v1.Create([]router.Subroute{
 		{Method: router.GET, Path: "/api/v1/repos/{repoID}", Handler: apiH.GetRepo},
 		{Method: router.GET, Path: "/api/v1/repos/{repoID}/jobs", Handler: apiH.ListJobs},
