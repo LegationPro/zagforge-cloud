@@ -11,6 +11,7 @@ type AppConfig struct {
 	GithubAppPrivateKey    string
 	GithubAppWebhookSecret string
 	ClerkSecretKey         string
+	HMACSigningKey         string
 }
 
 func LoadAppConfig() (*AppConfig, error) {
@@ -41,10 +42,16 @@ func LoadAppConfig() (*AppConfig, error) {
 		return nil, notSetErr("CLERK_SECRET_KEY")
 	}
 
+	hmacKey := os.Getenv("HMAC_SIGNING_KEY")
+	if hmacKey == "" {
+		return nil, notSetErr("HMAC_SIGNING_KEY")
+	}
+
 	return &AppConfig{
 		GithubAppID:            appID,
 		GithubAppPrivateKey:    privateKeyStr,
 		GithubAppWebhookSecret: webhookSecret,
 		ClerkSecretKey:         clerkKey,
+		HMACSigningKey:         hmacKey,
 	}, nil
 }

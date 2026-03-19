@@ -1,19 +1,19 @@
-package middleware_test
+package auth_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/auth"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
 )
 
 func TestAuth_missingToken_returns401(t *testing.T) {
-	mw := middleware.Auth(zap.NewNop())
+	mw := auth.Auth(zap.NewNop())
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -26,17 +26,17 @@ func TestAuth_missingToken_returns401(t *testing.T) {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
 
-	var body middleware.Response
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	body, err := httputil.DecodeJSON[httputil.ErrorResponse](w.Body)
+	if err != nil {
 		t.Fatalf("invalid json: %v", err)
 	}
-	if body.Error != middleware.ErrMissingToken.Error() {
-		t.Errorf("expected %q, got %q", middleware.ErrMissingToken, body.Error)
+	if body.Error == nil || *body.Error != auth.ErrMissingToken.Error() {
+		t.Errorf("expected %q, got %v", auth.ErrMissingToken, body.Error)
 	}
 }
 
 func TestAuth_invalidToken_returns401(t *testing.T) {
-	mw := middleware.Auth(zap.NewNop())
+	mw := auth.Auth(zap.NewNop())
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -50,17 +50,17 @@ func TestAuth_invalidToken_returns401(t *testing.T) {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
 
-	var body middleware.Response
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	body, err := httputil.DecodeJSON[httputil.ErrorResponse](w.Body)
+	if err != nil {
 		t.Fatalf("invalid json: %v", err)
 	}
-	if body.Error != middleware.ErrInvalidToken.Error() {
-		t.Errorf("expected %q, got %q", middleware.ErrInvalidToken, body.Error)
+	if body.Error == nil || *body.Error != auth.ErrInvalidToken.Error() {
+		t.Errorf("expected %q, got %v", auth.ErrInvalidToken, body.Error)
 	}
 }
 
 func TestAuth_missingBearerPrefix_returns401(t *testing.T) {
-	mw := middleware.Auth(zap.NewNop())
+	mw := auth.Auth(zap.NewNop())
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -76,7 +76,7 @@ func TestAuth_missingBearerPrefix_returns401(t *testing.T) {
 }
 
 func TestAuth_responseIsJSON(t *testing.T) {
-	mw := middleware.Auth(zap.NewNop())
+	mw := auth.Auth(zap.NewNop())
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -92,11 +92,11 @@ func TestAuth_responseIsJSON(t *testing.T) {
 }
 
 func TestClaimsFromContext_noClaims_returnsError(t *testing.T) {
-	_, err := middleware.ClaimsFromContext(context.Background())
+	_, err := auth.ClaimsFromContext(context.Background())
 	if err == nil {
 		t.Fatal("expected error when no claims in context")
 	}
-	if err != middleware.ErrClaimsNotFound {
-		t.Errorf("expected %q, got %q", middleware.ErrClaimsNotFound, err)
+	if err != auth.ErrClaimsNotFound {
+		t.Errorf("expected %q, got %q", auth.ErrClaimsNotFound, err)
 	}
 }

@@ -1,4 +1,4 @@
-package handler_test
+package health_test
 
 import (
 	"encoding/json"
@@ -6,11 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/health"
 )
 
 func TestLiveness_returns200(t *testing.T) {
-	h := handler.NewHealthHandler(nil)
+	h := health.NewHandler(nil)
 	r := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	w := httptest.NewRecorder()
 
@@ -20,14 +20,14 @@ func TestLiveness_returns200(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var body handler.HealthResponse
+	var body health.Response
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 		t.Fatalf("invalid json: %v", err)
 	}
 	if body.Status != "ok" {
 		t.Errorf("expected status %q, got %q", "ok", body.Status)
 	}
-	if body.Reason != nil {
-		t.Errorf("expected nil reason, got %q", *body.Reason)
+	if body.Reason != "" {
+		t.Errorf("expected empty reason, got %q", body.Reason)
 	}
 }

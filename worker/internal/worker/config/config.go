@@ -14,6 +14,11 @@ const (
 	defaultMaxConcurrency = 5
 )
 
+type GCSConfig struct {
+	Bucket   string
+	Endpoint string
+}
+
 type Config struct {
 	DatabaseURL    string
 	AppEnv         string
@@ -22,7 +27,10 @@ type Config struct {
 	ReportsDir     string
 	JobTimeout     time.Duration
 	MaxConcurrency int
+	APIBaseURL     string
+	HMACSigningKey string
 	GitHub         GitHubConfig
+	GCS            GCSConfig
 }
 
 type GitHubConfig struct {
@@ -78,6 +86,21 @@ func LoadConfig() (*Config, error) {
 		jobTimeout = d
 	}
 
+	gcsBucket := os.Getenv("GCS_BUCKET")
+	if gcsBucket == "" {
+		return nil, fmt.Errorf("GCS_BUCKET not set")
+	}
+
+	apiBaseURL := os.Getenv("API_BASE_URL")
+	if apiBaseURL == "" {
+		return nil, fmt.Errorf("API_BASE_URL not set")
+	}
+
+	hmacKey := os.Getenv("HMAC_SIGNING_KEY")
+	if hmacKey == "" {
+		return nil, fmt.Errorf("HMAC_SIGNING_KEY not set")
+	}
+
 	maxConcurrency := defaultMaxConcurrency
 	if raw := os.Getenv("MAX_CONCURRENCY"); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -95,10 +118,16 @@ func LoadConfig() (*Config, error) {
 		ReportsDir:     reportsDir,
 		JobTimeout:     jobTimeout,
 		MaxConcurrency: maxConcurrency,
+		APIBaseURL:     apiBaseURL,
+		HMACSigningKey: hmacKey,
 		GitHub: GitHubConfig{
 			AppID:         appID,
 			PrivateKey:    []byte(ghKey),
 			WebhookSecret: ghSecret,
+		},
+		GCS: GCSConfig{
+			Bucket:   gcsBucket,
+			Endpoint: os.Getenv("GCS_ENDPOINT"),
 		},
 	}, nil
 }

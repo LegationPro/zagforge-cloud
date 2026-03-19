@@ -1,4 +1,4 @@
-package handler_test
+package webhook_test
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/webhook"
 	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 	"go.uber.org/zap"
 )
@@ -52,8 +52,8 @@ func post(t *testing.T, h http.Handler, body []byte, signature, eventType string
 	return w
 }
 
-func newHandler(v *mockValidator, svc *mockPushHandler) *handler.WebhookHandler {
-	return handler.NewWebhookHandler(v, svc, zap.NewNop())
+func newHandler(v *mockValidator, svc *mockPushHandler) *webhook.Handler {
+	return webhook.NewHandler(v, svc, zap.NewNop())
 }
 
 func TestServeHTTP_missingSignature_returns401(t *testing.T) {

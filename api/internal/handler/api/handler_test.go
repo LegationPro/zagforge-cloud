@@ -1,7 +1,6 @@
-package handler_test
+package api_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,12 +9,13 @@ import (
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/api"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
 )
 
-// newAPIHandler creates an APIHandler with a nil DB pool (sufficient for param-validation tests).
-func newAPIHandler() *handler.APIHandler {
-	return handler.NewAPIHandler(&dbpkg.DB{}, zap.NewNop())
+// newHandler creates a Handler with a nil DB pool (sufficient for param-validation tests).
+func newHandler() *api.Handler {
+	return api.NewHandler(&dbpkg.DB{}, zap.NewNop())
 }
 
 // chiRequest builds an httptest request routed through a chi mux so URL params resolve.
@@ -32,31 +32,19 @@ func chiRequest(t *testing.T, method, pattern, target string, h http.HandlerFunc
 	return w
 }
 
-func decodeResponse(t *testing.T, w *httptest.ResponseRecorder) handler.Response {
+func decodeError(t *testing.T, w *httptest.ResponseRecorder) httputil.ErrorResponse {
 	t.Helper()
-	var resp handler.Response
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+	resp, err := httputil.DecodeJSON[httputil.ErrorResponse](w.Body)
+	if err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 	return resp
 }
 
-// -- parseLimit tests --
-
-func TestParseLimit_default(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/test", nil)
-	// parseLimit is unexported, so test it indirectly via ListJobs with invalid repoID.
-	// Instead, test the handler behavior that depends on it.
-
-	// No limit param → default 50 (tested through handler behavior).
-	// We just verify the request doesn't crash.
-	_ = r
-}
-
 // -- Content-Type tests --
 
-func TestAPIHandler_responses_haveJSONContentType(t *testing.T) {
-	h := newAPIHandler()
+func TestHandler_responses_haveJSONContentType(t *testing.T) {
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet, "/api/v1/repos/{repoID}", "/api/v1/repos/not-a-uuid", h.GetRepo)
 
 	ct := w.Header().Get("Content-Type")
@@ -68,51 +56,50 @@ func TestAPIHandler_responses_haveJSONContentType(t *testing.T) {
 // -- GetRepo tests --
 
 func TestGetRepo_invalidUUID_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet, "/api/v1/repos/{repoID}", "/api/v1/repos/not-a-uuid", h.GetRepo)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
-	resp := decodeResponse(t, w)
-	if resp.Error == nil || *resp.Error != handler.ErrInvalidRepoID.Error() {
-		t.Errorf("expected error %q, got %v", handler.ErrInvalidRepoID, resp.Error)
+	resp := decodeError(t, w)
+	if resp.Error == nil || *resp.Error != api.ErrInvalidRepoID.Error() {
+		t.Errorf("expected error %q, got %v", api.ErrInvalidRepoID, resp.Error)
 	}
 }
 
 // -- GetJob tests --
 
 func TestGetJob_invalidUUID_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet, "/api/v1/repos/{repoID}/jobs/{jobID}", "/api/v1/repos/xxx/jobs/bad-id", h.GetJob)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
-	resp := decodeResponse(t, w)
-	if resp.Error == nil || *resp.Error != handler.ErrInvalidJobID.Error() {
-		t.Errorf("expected error %q, got %v", handler.ErrInvalidJobID, resp.Error)
+	resp := decodeError(t, w)
+	if resp.Error == nil || *resp.Error != api.ErrInvalidJobID.Error() {
+		t.Errorf("expected error %q, got %v", api.ErrInvalidJobID, resp.Error)
 	}
 }
 
 // -- ListJobs tests --
 
 func TestListJobs_invalidRepoUUID_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet, "/api/v1/repos/{repoID}/jobs", "/api/v1/repos/bad/jobs", h.ListJobs)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
-	resp := decodeResponse(t, w)
-	if resp.Error == nil || *resp.Error != handler.ErrInvalidRepoID.Error() {
-		t.Errorf("expected error %q, got %v", handler.ErrInvalidRepoID, resp.Error)
+	resp := decodeError(t, w)
+	if resp.Error == nil || *resp.Error != api.ErrInvalidRepoID.Error() {
+		t.Errorf("expected error %q, got %v", api.ErrInvalidRepoID, resp.Error)
 	}
 }
 
 func TestListJobs_invalidCursor_returns400(t *testing.T) {
-	h := newAPIHandler()
-	// Use a valid UUID format so we get past parseUUID.
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet,
 		"/api/v1/repos/{repoID}/jobs",
 		"/api/v1/repos/00000000-0000-0000-0000-000000000001/jobs?cursor=not-a-date",
@@ -122,31 +109,31 @@ func TestListJobs_invalidCursor_returns400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
-	resp := decodeResponse(t, w)
-	if resp.Error == nil || *resp.Error != handler.ErrInvalidCursor.Error() {
-		t.Errorf("expected error %q, got %v", handler.ErrInvalidCursor, resp.Error)
+	resp := decodeError(t, w)
+	if resp.Error == nil || *resp.Error != httputil.ErrInvalidCursor.Error() {
+		t.Errorf("expected error %q, got %v", httputil.ErrInvalidCursor, resp.Error)
 	}
 }
 
 // -- GetSnapshot tests --
 
 func TestGetSnapshot_invalidUUID_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet, "/api/v1/snapshots/{snapshotID}", "/api/v1/snapshots/nope", h.GetSnapshot)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
-	resp := decodeResponse(t, w)
-	if resp.Error == nil || *resp.Error != handler.ErrInvalidSnapshotID.Error() {
-		t.Errorf("expected error %q, got %v", handler.ErrInvalidSnapshotID, resp.Error)
+	resp := decodeError(t, w)
+	if resp.Error == nil || *resp.Error != api.ErrInvalidSnapshotID.Error() {
+		t.Errorf("expected error %q, got %v", api.ErrInvalidSnapshotID, resp.Error)
 	}
 }
 
 // -- ListSnapshots tests --
 
 func TestListSnapshots_invalidRepoUUID_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet,
 		"/api/v1/repos/{repoID}/snapshots",
 		"/api/v1/repos/bad/snapshots?branch=main",
@@ -159,7 +146,7 @@ func TestListSnapshots_invalidRepoUUID_returns400(t *testing.T) {
 }
 
 func TestListSnapshots_missingBranch_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet,
 		"/api/v1/repos/{repoID}/snapshots",
 		"/api/v1/repos/00000000-0000-0000-0000-000000000001/snapshots",
@@ -169,16 +156,16 @@ func TestListSnapshots_missingBranch_returns400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
-	resp := decodeResponse(t, w)
-	if resp.Error == nil || *resp.Error != handler.ErrBranchRequired.Error() {
-		t.Errorf("expected error %q, got %v", handler.ErrBranchRequired, resp.Error)
+	resp := decodeError(t, w)
+	if resp.Error == nil || *resp.Error != api.ErrBranchRequired.Error() {
+		t.Errorf("expected error %q, got %v", api.ErrBranchRequired, resp.Error)
 	}
 }
 
 // -- GetLatestSnapshot tests --
 
 func TestGetLatestSnapshot_invalidRepoUUID_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet,
 		"/api/v1/repos/{repoID}/snapshots/latest",
 		"/api/v1/repos/bad/snapshots/latest?branch=main",
@@ -191,7 +178,7 @@ func TestGetLatestSnapshot_invalidRepoUUID_returns400(t *testing.T) {
 }
 
 func TestGetLatestSnapshot_missingBranch_returns400(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet,
 		"/api/v1/repos/{repoID}/snapshots/latest",
 		"/api/v1/repos/00000000-0000-0000-0000-000000000001/snapshots/latest",
@@ -201,26 +188,20 @@ func TestGetLatestSnapshot_missingBranch_returns400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
-	resp := decodeResponse(t, w)
-	if resp.Error == nil || *resp.Error != handler.ErrBranchRequired.Error() {
-		t.Errorf("expected error %q, got %v", handler.ErrBranchRequired, resp.Error)
+	resp := decodeError(t, w)
+	if resp.Error == nil || *resp.Error != api.ErrBranchRequired.Error() {
+		t.Errorf("expected error %q, got %v", api.ErrBranchRequired, resp.Error)
 	}
 }
 
 // -- Response shape tests --
 
 func TestErrResponse_shape(t *testing.T) {
-	h := newAPIHandler()
+	h := newHandler()
 	w := chiRequest(t, http.MethodGet, "/api/v1/repos/{repoID}", "/api/v1/repos/bad", h.GetRepo)
 
-	resp := decodeResponse(t, w)
-	if resp.Data != nil {
-		t.Error("expected nil data on error response")
-	}
+	resp := decodeError(t, w)
 	if resp.Error == nil {
 		t.Error("expected non-nil error on error response")
-	}
-	if resp.NextCursor != nil {
-		t.Error("expected nil next_cursor on error response")
 	}
 }

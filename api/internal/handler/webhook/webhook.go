@@ -1,4 +1,4 @@
-package handler
+package webhook
 
 import (
 	"context"
@@ -12,42 +12,51 @@ import (
 
 const maxPayloadBytes = 25 * 1024 * 1024
 
-var _ http.Handler = (*WebhookHandler)(nil)
+var _ http.Handler = (*Handler)(nil)
 
 var supportedEvents = map[string]bool{
 	"push": true,
 }
 
-// pushHandler receives a validated push event and delivery ID.
+var (
+	ErrMissingSignature = errors.New("missing signature")
+	ErrInvalidSignature = errors.New("invalid signature")
+	ErrFailedToReadBody = errors.New("failed to read body")
+	ErrPayloadTooLarge  = errors.New("payload too large")
+	ErrValidation       = errors.New("validation error")
+	ErrInternal         = errors.New("internal error")
+)
+
+// PushHandler receives a validated push event and delivery ID.
 // JobService satisfies this interface.
-type pushHandler interface {
+type PushHandler interface {
 	HandlePush(ctx context.Context, event github.WebhookEvent, deliveryID string) error
 }
 
-type WebhookHandler struct {
+type Handler struct {
 	validator github.WebhookValidator
-	svc       pushHandler
+	svc       PushHandler
 	log       *zap.Logger
 }
 
-func NewWebhookHandler(v github.WebhookValidator, svc pushHandler, log *zap.Logger) *WebhookHandler {
-	return &WebhookHandler{validator: v, svc: svc, log: log}
+func NewHandler(v github.WebhookValidator, svc PushHandler, log *zap.Logger) *Handler {
+	return &Handler{validator: v, svc: svc, log: log}
 }
 
-func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	signature := r.Header.Get("X-Hub-Signature-256")
 	if signature == "" {
-		http.Error(w, "missing signature", http.StatusUnauthorized)
+		http.Error(w, ErrMissingSignature.Error(), http.StatusUnauthorized)
 		return
 	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxPayloadBytes+1))
 	if err != nil {
-		http.Error(w, "failed to read body", http.StatusInternalServerError)
+		http.Error(w, ErrFailedToReadBody.Error(), http.StatusInternalServerError)
 		return
 	}
 	if int64(len(body)) > maxPayloadBytes {
-		http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+		http.Error(w, ErrPayloadTooLarge.Error(), http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -55,12 +64,12 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	event, err := h.validator.ValidateWebhook(r.Context(), body, signature, eventType)
 	if errors.Is(err, github.ErrInvalidSignature) {
 		h.log.Warn("invalid signature", zap.String("event", eventType))
-		http.Error(w, "invalid signature", http.StatusUnauthorized)
+		http.Error(w, ErrInvalidSignature.Error(), http.StatusUnauthorized)
 		return
 	}
 	if err != nil {
 		h.log.Error("validation error", zap.String("event", eventType), zap.Error(err))
-		http.Error(w, "validation error", http.StatusInternalServerError)
+		http.Error(w, ErrValidation.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -80,7 +89,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.svc.HandlePush(r.Context(), event, deliveryID); err != nil {
 		h.log.Error("handle push failed", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, ErrInternal.Error(), http.StatusInternalServerError)
 		return
 	}
 

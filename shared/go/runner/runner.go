@@ -104,6 +104,35 @@ func (r *Runner) Drain(timeout time.Duration, tick time.Duration) error {
 	}
 }
 
+// JobInfo holds the parameters for a job where the clone token is already available
+// (e.g. provided by the start callback).
+type JobInfo struct {
+	RepoFullName   string
+	Branch         string
+	CommitSHA      string
+	CloneToken     string
+	InstallationID int64
+}
+
+// RunWithToken executes a job using a pre-generated clone token (from the start callback).
+func (r *Runner) RunWithToken(ctx context.Context, info JobInfo) (*Result, error) {
+	if r.cfg.JobTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, r.cfg.JobTimeout)
+		defer cancel()
+	}
+
+	r.log.Info("starting job",
+		zap.String("repo", info.RepoFullName),
+		zap.String("branch", info.Branch),
+		zap.String("commit", info.CommitSHA),
+	)
+
+	cloneURL := fmt.Sprintf("https://github.com/%s.git", info.RepoFullName)
+
+	return r.cloneAndRun(ctx, cloneURL, info.Branch, info.CommitSHA, info.CloneToken, info.RepoFullName)
+}
+
 // Run executes the full job: generate token → clone → zigzag → cleanup.
 func (r *Runner) Run(ctx context.Context, event github.WebhookEvent) (*Result, error) {
 	if r.cfg.JobTimeout > 0 {
@@ -123,6 +152,11 @@ func (r *Runner) Run(ctx context.Context, event github.WebhookEvent) (*Result, e
 		return nil, fmt.Errorf("generate clone token: %w", err)
 	}
 
+	return r.cloneAndRun(ctx, event.CloneURL, event.Branch, event.CommitSHA, token, event.RepoName)
+}
+
+// cloneAndRun handles the shared logic: clone → zigzag → collect results → cleanup.
+func (r *Runner) cloneAndRun(ctx context.Context, cloneURL, branch, commitSHA, token, repoName string) (*Result, error) {
 	if err := os.MkdirAll(r.cfg.WorkspaceDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create workspace dir: %w", err)
 	}
@@ -139,12 +173,12 @@ func (r *Runner) Run(ctx context.Context, event github.WebhookEvent) (*Result, e
 	}(workDir)
 
 	repoDir := filepath.Join(workDir, "repo")
-	if err := r.cloner.CloneRepo(ctx, event.CloneURL, event.Branch, token, repoDir); err != nil {
+	if err := r.cloner.CloneRepo(ctx, cloneURL, branch, token, repoDir); err != nil {
 		return nil, fmt.Errorf("clone repo: %w", err)
 	}
 
 	r.log.Info("running zigzag",
-		zap.String("repo", event.RepoName),
+		zap.String("repo", repoName),
 		zap.String("reports_dir", r.cfg.ReportsDir),
 	)
 	cmd := exec.CommandContext(ctx, r.cfg.ZigzagBin, "run", "--no-watch", "--output-dir", r.cfg.ReportsDir)
@@ -159,9 +193,9 @@ func (r *Runner) Run(ctx context.Context, event github.WebhookEvent) (*Result, e
 	}
 
 	r.log.Info("job complete",
-		zap.String("repo", event.RepoName),
-		zap.String("branch", event.Branch),
-		zap.String("commit", event.CommitSHA),
+		zap.String("repo", repoName),
+		zap.String("branch", branch),
+		zap.String("commit", commitSHA),
 		zap.String("zigzag_version", result.ZigzagVersion),
 		zap.Int64("size_bytes", result.SizeBytes),
 	)

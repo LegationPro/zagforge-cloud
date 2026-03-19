@@ -15,10 +15,21 @@ type DBConfig struct {
 	URL string
 }
 
+type RedisConfig struct {
+	URL string
+}
+
+type GCSConfig struct {
+	Bucket   string
+	Endpoint string // override for fake-gcs-server in dev
+}
+
 type Config struct {
 	App    *AppConfig
 	Server *ServerConfig
 	DB     *DBConfig
+	Redis  *RedisConfig
+	GCS    *GCSConfig
 }
 
 func Load() (*Config, error) {
@@ -43,5 +54,24 @@ func Load() (*Config, error) {
 	if dbURL == "" {
 		return nil, notSetErr("DATABASE_URL")
 	}
-	return &Config{App: app, Server: server, DB: &DBConfig{URL: dbURL}}, nil
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		return nil, notSetErr("REDIS_URL")
+	}
+
+	gcsBucket := os.Getenv("GCS_BUCKET")
+	if gcsBucket == "" {
+		return nil, notSetErr("GCS_BUCKET")
+	}
+
+	return &Config{
+		App:    app,
+		Server: server,
+		DB:     &DBConfig{URL: dbURL},
+		Redis:  &RedisConfig{URL: redisURL},
+		GCS: &GCSConfig{
+			Bucket:   gcsBucket,
+			Endpoint: os.Getenv("GCS_ENDPOINT"),
+		},
+	}, nil
 }
