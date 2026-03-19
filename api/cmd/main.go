@@ -18,6 +18,7 @@ import (
 	apihandler "github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/api"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/callback"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/health"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/watchdog"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/webhook"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/auth"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/contenttype"
