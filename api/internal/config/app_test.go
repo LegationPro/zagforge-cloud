@@ -33,6 +33,7 @@ func TestLoadAppConfig(t *testing.T) {
 				"GITHUB_APP_ID":             "2895893256896859",
 				"GITHUB_APP_WEBHOOK_SECRET": "secret",
 				"GITHUB_APP_PRIVATE_KEY":    "another_secret_key",
+				"CLERK_SECRET_KEY":          "sk_test_xxx",
 			},
 			expectError:    false,
 			expectedAppID:  2895893256896859,
@@ -47,7 +48,8 @@ func TestLoadAppConfig(t *testing.T) {
 			originalEnv := map[string]string{
 				"GITHUB_APP_ID":             os.Getenv("GITHUB_APP_ID"),
 				"GITHUB_APP_WEBHOOK_SECRET": os.Getenv("GITHUB_APP_WEBHOOK_SECRET"),
-				"GITHUB_APP_RRIVATE_KEY":    os.Getenv("GITHUB_APP_RRIVATE_KEY"),
+				"GITHUB_APP_PRIVATE_KEY":    os.Getenv("GITHUB_APP_PRIVATE_KEY"),
+				"CLERK_SECRET_KEY":          os.Getenv("CLERK_SECRET_KEY"),
 			}
 
 			// Restore original environment variables after test
