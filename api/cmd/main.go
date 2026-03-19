@@ -13,8 +13,9 @@ import (
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/runner"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/service"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/router"
+
 	githubprovider "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
-	"github.com/go-chi/chi/v5"
 )
 
 func main() {
@@ -50,12 +51,18 @@ func main() {
 	svc := service.NewJobService(database, run)
 	wh := handler.NewWebhookHandler(ch, svc)
 
-	mux := chi.NewRouter()
-	mux.Post("/internal/webhooks/github", wh.ServeHTTP)
+	r := router.New()
+
+	internal := r.Group()
+	if err := internal.Create([]router.Subroute{
+		{Method: router.POST, Path: "/internal/webhooks/github", Handler: wh.ServeHTTP},
+	}); err != nil {
+		log.Fatalf("failed to register routes: %v", err)
+	}
 
 	srv := &http.Server{
 		Addr:    ":" + c.Server.Port,
-		Handler: mux,
+		Handler: r.Handler(),
 	}
 
 	go func() {
