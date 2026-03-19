@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
@@ -16,23 +17,16 @@ import (
 	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 )
 
-var _ dispatcher = (*runner.Runner)(nil)
-
-// dispatcher is satisfied by *runner.Runner.
-type dispatcher interface {
-	Dispatch(ctx context.Context, event github.WebhookEvent)
-}
-
 // JobService orchestrates job creation with deduplication.
 // It satisfies handler.pushHandler.
 type JobService struct {
-	db  *dbpkg.DB
-	run dispatcher
-	log *zap.Logger
+	db     *dbpkg.DB
+	runner *runner.Runner
+	log    *zap.Logger
 }
 
-func NewJobService(db *dbpkg.DB, run dispatcher, log *zap.Logger) *JobService {
-	return &JobService{db: db, run: run, log: log}
+func NewJobService(db *dbpkg.DB, runner *runner.Runner, log *zap.Logger) *JobService {
+	return &JobService{db: db, runner: runner, log: log}
 }
 
 // HandlePush persists a new queued job for the push event (with dedup) then dispatches it.
@@ -67,7 +61,6 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 	}
 
 	// 2. Acquire per-(repo, branch) advisory lock for the duration of this transaction.
-	// hashtext returns int4, cast to int8 for pg_advisory_xact_lock.
 	if _, err := tx.Exec(ctx,
 		"SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2)::bigint)",
 		repo.ID, event.Branch,
@@ -91,13 +84,14 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 		}
 	}
 
-	// 4. Insert new queued job. NULLIF in the SQL converts empty deliveryID to NULL.
-	if _, err := qtx.CreateJob(ctx, dbsqlc.CreateJobParams{
+	// 4. Insert new queued job.
+	job, err := qtx.CreateJob(ctx, dbsqlc.CreateJobParams{
 		RepoID:    repo.ID,
 		Branch:    event.Branch,
 		CommitSha: event.CommitSHA,
 		Column4:   deliveryID,
-	}); err != nil {
+	})
+	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil // duplicate delivery, no-op
@@ -110,6 +104,61 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 	}
 
 	// 5. Dispatch outside the transaction with detached context.
-	s.run.Dispatch(context.Background(), event)
+	s.dispatch(job.ID, repo.ID, event)
 	return nil
+}
+
+// dispatch runs the job in a background goroutine, managing status transitions and snapshot creation.
+func (s *JobService) dispatch(jobID, repoID pgtype.UUID, event github.WebhookEvent) {
+	s.runner.GoWait(func() {
+		ctx := context.Background()
+
+		// Mark running.
+		if err := s.db.Queries.UpdateJobStatus(ctx, dbsqlc.UpdateJobStatusParams{
+			ID:     jobID,
+			Status: dbsqlc.JobStatusRunning,
+		}); err != nil {
+			s.log.Error("failed to mark job running", zap.Error(err))
+			return
+		}
+
+		result, err := s.runner.Run(ctx, event)
+		if err != nil {
+			s.log.Error("job failed",
+				zap.String("repo", event.RepoName),
+				zap.String("branch", event.Branch),
+				zap.String("commit", event.CommitSHA),
+				zap.Error(err),
+			)
+			s.db.Queries.UpdateJobStatus(ctx, dbsqlc.UpdateJobStatusParams{
+				ID:     jobID,
+				Status: dbsqlc.JobStatusFailed,
+				ErrorMessage: pgtype.Text{String: err.Error(), Valid: true},
+			})
+			return
+		}
+
+		// Create snapshot.
+		_, snapErr := s.db.Queries.InsertSnapshot(ctx, dbsqlc.InsertSnapshotParams{
+			RepoID:          repoID,
+			JobID:           jobID,
+			Branch:          event.Branch,
+			CommitSha:       event.CommitSHA,
+			GcsPath:         result.ReportsDir,
+			SnapshotVersion: 1,
+			ZigzagVersion:   result.ZigzagVersion,
+			SizeBytes:       result.SizeBytes,
+		})
+		if snapErr != nil {
+			s.log.Error("failed to insert snapshot", zap.Error(snapErr))
+		}
+
+		// Mark succeeded.
+		if err := s.db.Queries.UpdateJobStatus(ctx, dbsqlc.UpdateJobStatusParams{
+			ID:     jobID,
+			Status: dbsqlc.JobStatusSucceeded,
+		}); err != nil {
+			s.log.Error("failed to mark job succeeded", zap.Error(err))
+		}
+	})
 }
