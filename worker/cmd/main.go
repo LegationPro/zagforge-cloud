@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/jobtoken"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/logger"
@@ -19,6 +21,7 @@ import (
 	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/apiclient"
 	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/config"
 	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/executor"
+	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/handler"
 	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/poller"
 )
 
@@ -73,12 +76,51 @@ func run() error {
 	}, log)
 
 	exec := executor.NewExecutor(api, gcs, r, log)
-	p := poller.NewPoller(queries, r, exec, log, pollInterval, cfg.MaxConcurrency)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	return p.Run(ctx)
+	switch cfg.WorkerMode {
+	case "http":
+		return runHTTP(ctx, cfg, queries, exec, signer, log)
+	case "poll":
+		p := poller.NewPoller(queries, r, exec, log, pollInterval, cfg.MaxConcurrency)
+		return p.Run(ctx)
+	default:
+		return fmt.Errorf("unknown WORKER_MODE: %q (expected \"http\" or \"poll\")", cfg.WorkerMode)
+	}
+}
+
+func runHTTP(ctx context.Context, cfg *config.Config, queries *store.Queries, exec *executor.Executor, signer *jobtoken.Signer, log *zap.Logger) error {
+	h := handler.New(queries, exec, signer, log)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /run", h.Run)
+
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: mux,
+	}
+
+	go func() {
+		log.Info("worker http server listening", zap.String("port", cfg.Port))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("server error", zap.Error(err))
+		}
+	}()
+
+	<-ctx.Done()
+
+	log.Info("shutting down worker http server")
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("server shutdown: %w", err)
+	}
+
+	log.Info("worker http server stopped")
+	return nil
 }
 
 func main() {

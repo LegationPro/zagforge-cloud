@@ -15,6 +15,7 @@ import (
 
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/config"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/engine"
 	apihandler "github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/api"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/callback"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/health"
@@ -81,7 +82,30 @@ func run() error {
 
 	signer := jobtoken.NewSigner([]byte(c.App.HMACSigningKey), 30*time.Minute)
 
-	svc := service.NewJobService(database, log)
+	// Cloud Tasks enqueuer (or noop for local dev).
+	var enqueuer engine.TaskEnqueuer
+	if c.CloudTasks.Enabled() {
+		ct, err := engine.NewCloudTasksEnqueuer(context.Background(), engine.CloudTasksConfig{
+			Project:   c.CloudTasks.Project,
+			Location:  c.CloudTasks.Location,
+			Queue:     c.CloudTasks.Queue,
+			WorkerURL: c.CloudTasks.WorkerURL,
+		})
+		if err != nil {
+			return fmt.Errorf("create cloud tasks enqueuer: %w", err)
+		}
+		defer ct.Close()
+		enqueuer = ct
+		log.Info("cloud tasks enqueuer enabled",
+			zap.String("queue", c.CloudTasks.Queue),
+			zap.String("worker_url", c.CloudTasks.WorkerURL),
+		)
+	} else {
+		enqueuer = engine.NewNoopEnqueuer(log)
+		log.Info("cloud tasks not configured, using noop enqueuer (poller mode)")
+	}
+
+	svc := service.NewJobService(database, log, enqueuer, signer)
 	wh := webhook.NewHandler(ch, svc, log)
 	healthH := health.NewHandler(pool)
 	apiH := apihandler.NewHandler(database, log)

@@ -9,6 +9,8 @@ import (
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/engine"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/jobtoken"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/pgerr"
 	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
@@ -17,16 +19,21 @@ import (
 // JobService orchestrates job creation with deduplication.
 // It satisfies webhook.PushHandler.
 type JobService struct {
-	db  *dbpkg.DB
-	log *zap.Logger
+	db       *dbpkg.DB
+	log      *zap.Logger
+	enqueuer engine.TaskEnqueuer
+	signer   *jobtoken.Signer
 }
 
-func NewJobService(db *dbpkg.DB, log *zap.Logger) *JobService {
-	return &JobService{db: db, log: log}
+func NewJobService(db *dbpkg.DB, log *zap.Logger, enqueuer engine.TaskEnqueuer, signer *jobtoken.Signer) *JobService {
+	return &JobService{db: db, log: log, enqueuer: enqueuer, signer: signer}
 }
 
 // HandlePush persists a new queued job for the push event (with dedup).
-// The job will be picked up by a separate worker process.
+// Dedup strategy: if a queued job already exists for this branch, update its
+// commit_sha in place — the existing Cloud Tasks task will pick up the latest
+// SHA when the worker calls /internal/jobs/start. If a running job exists (but
+// no queued), a new queued job is created and enqueued.
 // If the repo is not registered, the event is silently dropped.
 func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, deliveryID string) error {
 	tx, err := s.db.Pool.Begin(ctx)
@@ -64,7 +71,7 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 		return fmt.Errorf("acquire advisory lock: %w", err)
 	}
 
-	// 3. Supersede any existing queued jobs for this branch.
+	// 3. Check active jobs — update-in-place or create new.
 	active, err := qtx.GetActiveJobsForBranch(ctx, store.GetActiveJobsForBranchParams{
 		RepoID: repo.ID,
 		Branch: event.Branch,
@@ -72,15 +79,33 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 	if err != nil {
 		return fmt.Errorf("get active jobs: %w", err)
 	}
+
+	// If a queued job exists, update its commit_sha in place. The existing
+	// Cloud Tasks task (or poller) will pick up the latest SHA.
 	for _, j := range active {
 		if j.Status == store.JobStatusQueued {
-			if err := qtx.MarkJobSuperseded(ctx, j.ID); err != nil {
-				return fmt.Errorf("mark job superseded: %w", err)
+			if err := qtx.UpdateJobCommitSHA(ctx, store.UpdateJobCommitSHAParams{
+				ID:        j.ID,
+				CommitSha: event.CommitSHA,
+			}); err != nil {
+				return fmt.Errorf("update job commit sha: %w", err)
 			}
+
+			if err := tx.Commit(ctx); err != nil {
+				return fmt.Errorf("commit tx: %w", err)
+			}
+
+			s.log.Info("job updated in place",
+				zap.String("job_id", j.ID.String()),
+				zap.String("repo", event.RepoName),
+				zap.String("branch", event.Branch),
+				zap.String("commit", event.CommitSHA),
+			)
+			return nil
 		}
 	}
 
-	// 4. Insert new queued job.
+	// No queued job — create a new one.
 	job, err := qtx.CreateJob(ctx, store.CreateJobParams{
 		RepoID:    repo.ID,
 		Branch:    event.Branch,
@@ -104,5 +129,17 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 		zap.String("branch", event.Branch),
 		zap.String("commit", event.CommitSHA),
 	)
+
+	// Enqueue AFTER commit so the task doesn't reference an uncommitted job.
+	// On failure, log and move on — the watchdog will catch orphaned jobs.
+	jobID := job.ID.String()
+	token := s.signer.Sign(jobID)
+	if err := s.enqueuer.Enqueue(ctx, jobID, token); err != nil {
+		s.log.Error("failed to enqueue task (watchdog will recover)",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+
 	return nil
 }

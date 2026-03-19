@@ -32,6 +32,8 @@ type Config struct {
 	MaxConcurrency int           `env:"MAX_CONCURRENCY"    envDefault:"5"`
 	APIBaseURL     string        `env:"API_BASE_URL,required"`
 	HMACSigningKey string        `env:"HMAC_SIGNING_KEY,required"`
+	WorkerMode     string        `env:"WORKER_MODE"        envDefault:"poll"`
+	Port           string        `env:"PORT"               envDefault:"8080"`
 	GitHub         GitHubConfig  `envPrefix:""`
 	GCS            GCSConfig     `envPrefix:""`
 }

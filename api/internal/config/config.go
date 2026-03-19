@@ -22,12 +22,25 @@ type GCSConfig struct {
 	Endpoint string `env:"GCS_ENDPOINT"` // override for fake-gcs-server in dev
 }
 
+type CloudTasksConfig struct {
+	Project   string `env:"CLOUD_TASKS_PROJECT"`
+	Location  string `env:"CLOUD_TASKS_LOCATION"`
+	Queue     string `env:"CLOUD_TASKS_QUEUE"`
+	WorkerURL string `env:"CLOUD_TASKS_WORKER_URL"`
+}
+
+// Enabled returns true when all Cloud Tasks fields are set.
+func (c CloudTasksConfig) Enabled() bool {
+	return c.Project != "" && c.Location != "" && c.Queue != "" && c.WorkerURL != ""
+}
+
 type Config struct {
-	App    AppConfig    `envPrefix:""`
-	Server ServerConfig `envPrefix:""`
-	DB     DBConfig     `envPrefix:""`
-	Redis  RedisConfig  `envPrefix:""`
-	GCS    GCSConfig    `envPrefix:""`
+	App        AppConfig        `envPrefix:""`
+	Server     ServerConfig     `envPrefix:""`
+	DB         DBConfig         `envPrefix:""`
+	Redis      RedisConfig      `envPrefix:""`
+	GCS        GCSConfig        `envPrefix:""`
+	CloudTasks CloudTasksConfig `envPrefix:""`
 }
 
 func Load() (*Config, error) {

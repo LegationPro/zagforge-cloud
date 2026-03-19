@@ -55,6 +55,9 @@ WHERE id = $1;
 -- name: GetJobForUpdate :one
 SELECT * FROM jobs WHERE id = $1 FOR UPDATE;
 
+-- name: UpdateJobCommitSHA :exec
+UPDATE jobs SET commit_sha = $2 WHERE id = $1 AND status = 'queued';
+
 -- name: TimeoutRunningJobs :execrows
 UPDATE jobs
 SET status = 'failed',

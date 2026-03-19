@@ -274,6 +274,20 @@ func (q *Queries) TimeoutRunningJobs(ctx context.Context, dollar_1 int32) (int64
 	return result.RowsAffected(), nil
 }
 
+const updateJobCommitSHA = `-- name: UpdateJobCommitSHA :exec
+UPDATE jobs SET commit_sha = $2 WHERE id = $1 AND status = 'queued'
+`
+
+type UpdateJobCommitSHAParams struct {
+	ID        pgtype.UUID
+	CommitSha string
+}
+
+func (q *Queries) UpdateJobCommitSHA(ctx context.Context, arg UpdateJobCommitSHAParams) error {
+	_, err := q.db.Exec(ctx, updateJobCommitSHA, arg.ID, arg.CommitSha)
+	return err
+}
+
 const updateJobStatus = `-- name: UpdateJobStatus :exec
 UPDATE jobs
 SET status = $2,
