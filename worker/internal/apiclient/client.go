@@ -17,6 +17,9 @@ import (
 var (
 	ErrStartFailed    = errors.New("start callback failed")
 	ErrCompleteFailed = errors.New("complete callback failed")
+	ErrEmptyJobID     = errors.New("job_id is required")
+	ErrEmptyStatus    = errors.New("status is required")
+	ErrInvalidStatus  = errors.New("status must be succeeded or failed")
 )
 
 // StartRequest is the body sent when the worker begins a job.
@@ -69,6 +72,10 @@ func (c *Client) closeBody(body io.ReadCloser) {
 
 // Start calls POST /internal/jobs/start and returns clone info for the job.
 func (c *Client) Start(ctx context.Context, jobID string) (StartResponse, error) {
+	if jobID == "" {
+		return StartResponse{}, ErrEmptyJobID
+	}
+
 	body, err := json.Marshal(StartRequest{JobID: jobID})
 	if err != nil {
 		return StartResponse{}, fmt.Errorf("marshal start request: %w", err)
@@ -104,6 +111,16 @@ func (c *Client) Start(ctx context.Context, jobID string) (StartResponse, error)
 
 // Complete calls POST /internal/jobs/complete to report job result.
 func (c *Client) Complete(ctx context.Context, req CompleteRequest) error {
+	if req.JobID == "" {
+		return ErrEmptyJobID
+	}
+	if req.Status == "" {
+		return ErrEmptyStatus
+	}
+	if req.Status != "succeeded" && req.Status != "failed" {
+		return ErrInvalidStatus
+	}
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("marshal complete request: %w", err)
