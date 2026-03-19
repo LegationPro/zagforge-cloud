@@ -17,7 +17,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var GithubApiVersion = "2026-03-10" // TODO: Use this and use the latest GitHub API version
+var GithubApiVersion = "2026-03-10"
 
 // ClientHandler wraps an APIClient and satisfies the provider.Worker interface.
 type ClientHandler struct {
