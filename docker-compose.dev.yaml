@@ -55,6 +55,7 @@ services:
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
       GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      HMAC_SIGNING_KEY: ${HMAC_SIGNING_KEY:-dev-hmac-signing-key-change-me}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
       interval: 5s
