@@ -3,83 +3,113 @@ package executor
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 
-	githubprovider "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/runner"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/storage"
+	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/apiclient"
 )
 
-// JobRecorder is the subset of store.Queries the executor needs.
-type JobRecorder interface {
-	UpdateJobStatus(ctx context.Context, arg store.UpdateJobStatusParams) error
-	InsertSnapshot(ctx context.Context, arg store.InsertSnapshotParams) (store.Snapshot, error)
-}
-
-// Executor runs a claimed job: clone → zigzag → snapshot → status update.
+// Executor runs a claimed job: start callback → clone → zigzag → GCS upload → complete callback.
 type Executor struct {
-	recorder JobRecorder
-	runner   *runner.Runner
-	log      *zap.Logger
+	api    *apiclient.Client
+	gcs    *storage.Client
+	runner *runner.Runner
+	log    *zap.Logger
 }
 
-func NewExecutor(recorder JobRecorder, runner *runner.Runner, log *zap.Logger) *Executor {
-	return &Executor{recorder: recorder, runner: runner, log: log}
+func NewExecutor(api *apiclient.Client, gcs *storage.Client, runner *runner.Runner, log *zap.Logger) *Executor {
+	return &Executor{api: api, gcs: gcs, runner: runner, log: log}
 }
 
-func (e *Executor) Execute(ctx context.Context, job store.Job, repo store.GetRepoForJobRow) {
-	cloneURL := fmt.Sprintf("https://github.com/%s.git", repo.FullName)
-
-	result, err := e.runner.Run(ctx, githubprovider.WebhookEvent{
-		RepoID:         repo.GithubRepoID,
-		RepoName:       repo.FullName,
-		CloneURL:       cloneURL,
-		Branch:         job.Branch,
-		CommitSHA:      job.CommitSha,
-		InstallationID: repo.InstallationID,
-	})
-	if err != nil {
-		e.log.Error("job failed",
-			zap.String("job_id", job.ID.String()),
-			zap.String("repo", repo.FullName),
-			zap.Error(err),
-		)
-		if statusErr := e.recorder.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
-			ID:           job.ID,
-			Status:       store.JobStatusFailed,
-			ErrorMessage: pgtype.Text{String: err.Error(), Valid: true},
-		}); statusErr != nil {
-			e.log.Error("failed to update job status", zap.String("job_id", job.ID.String()), zap.Error(statusErr))
-		}
+// Execute runs the full job lifecycle for a claimed job.
+func (e *Executor) Execute(ctx context.Context, jobID string, orgID string, repoID string) {
+	if e.api == nil {
+		e.log.Warn("executor: api client not configured, skipping job", zap.String("job_id", jobID))
 		return
 	}
 
-	if _, snapErr := e.recorder.InsertSnapshot(ctx, store.InsertSnapshotParams{
-		RepoID:          job.RepoID,
-		JobID:           job.ID,
-		Branch:          job.Branch,
-		CommitSha:       job.CommitSha,
-		GcsPath:         result.ReportsDir,
-		SnapshotVersion: 1,
-		ZigzagVersion:   result.ZigzagVersion,
-		SizeBytes:       result.SizeBytes,
-	}); snapErr != nil {
-		e.log.Error("failed to insert snapshot", zap.String("job_id", job.ID.String()), zap.Error(snapErr))
+	// 1. Call start callback — gets clone info.
+	info, err := e.api.Start(ctx, jobID)
+	if err != nil {
+		e.log.Error("start callback failed", zap.String("job_id", jobID), zap.Error(err))
+		e.completeFailed(ctx, jobID, fmt.Sprintf("start callback: %v", err))
+		return
 	}
 
-	if statusErr := e.recorder.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
-		ID:     job.ID,
-		Status: store.JobStatusSucceeded,
-	}); statusErr != nil {
-		e.log.Error("failed to update job status", zap.String("job_id", job.ID.String()), zap.Error(statusErr))
+	e.log.Info("job started",
+		zap.String("job_id", jobID),
+		zap.String("repo", info.RepoFullName),
+		zap.String("branch", info.Branch),
+		zap.String("commit", info.CommitSHA),
+	)
+
+	// 2. Clone and run zigzag.
+	result, err := e.runner.RunWithToken(ctx, runner.JobInfo{
+		RepoFullName:   info.RepoFullName,
+		Branch:         info.Branch,
+		CommitSHA:      info.CommitSHA,
+		CloneToken:     info.CloneToken,
+		InstallationID: info.InstallationID,
+	})
+	if err != nil {
+		e.log.Error("job execution failed", zap.String("job_id", jobID), zap.Error(err))
+		e.completeFailed(ctx, jobID, err.Error())
+		return
+	}
+
+	// 3. Upload snapshot to GCS.
+	gcsPath := storage.SnapshotPath(orgID, repoID, info.CommitSHA)
+	snapshotData, err := readReportFile(result.ReportsDir)
+	if err != nil {
+		e.log.Error("read report failed", zap.String("job_id", jobID), zap.Error(err))
+		e.completeFailed(ctx, jobID, fmt.Sprintf("read report: %v", err))
+		return
+	}
+
+	if err := e.gcs.Upload(ctx, gcsPath, snapshotData); err != nil {
+		e.log.Error("gcs upload failed", zap.String("job_id", jobID), zap.Error(err))
+		e.completeFailed(ctx, jobID, fmt.Sprintf("gcs upload: %v", err))
+		return
+	}
+
+	// 4. Call complete callback with success.
+	if err := e.api.Complete(ctx, apiclient.CompleteRequest{
+		JobID:         jobID,
+		Status:        "succeeded",
+		SnapshotPath:  gcsPath,
+		ZigzagVersion: result.ZigzagVersion,
+		SizeBytes:     result.SizeBytes,
+	}); err != nil {
+		e.log.Error("complete callback failed", zap.String("job_id", jobID), zap.Error(err))
+		return
 	}
 
 	e.log.Info("job succeeded",
-		zap.String("job_id", job.ID.String()),
-		zap.String("repo", repo.FullName),
+		zap.String("job_id", jobID),
+		zap.String("gcs_path", gcsPath),
 		zap.String("zigzag_version", result.ZigzagVersion),
 		zap.Int64("size_bytes", result.SizeBytes),
 	)
+}
+
+func (e *Executor) completeFailed(ctx context.Context, jobID string, errMsg string) {
+	if err := e.api.Complete(ctx, apiclient.CompleteRequest{
+		JobID:        jobID,
+		Status:       "failed",
+		ErrorMessage: errMsg,
+	}); err != nil {
+		e.log.Error("failed to report job failure",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+}
+
+// readReportFile reads the main report.json from the reports directory.
+func readReportFile(reportsDir string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(reportsDir, "report.json"))
 }

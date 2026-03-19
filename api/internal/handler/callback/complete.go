@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	jobtokenmw "github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/jobtoken"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/validate"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 )
@@ -24,13 +25,13 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.JobID != jobtokenmw.JobIDFromContext(r.Context()) {
-		httputil.ErrResponse(w, http.StatusBadRequest, ErrJobIDMismatch)
+	if err := validate.Struct(req); err != nil {
+		httputil.ErrResponse(w, http.StatusBadRequest, err)
 		return
 	}
 
-	if !req.Status.IsValid() {
-		httputil.ErrResponse(w, http.StatusBadRequest, ErrInvalidStatus)
+	if req.JobID != jobtokenmw.JobIDFromContext(r.Context()) {
+		httputil.ErrResponse(w, http.StatusBadRequest, ErrJobIDMismatch)
 		return
 	}
 
@@ -86,7 +87,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert snapshot on success.
-	if status == store.JobStatusSucceeded && req.SnapshotPath != "" {
+	if status == store.JobStatusSucceeded {
 		if _, err := qtx.InsertSnapshot(r.Context(), store.InsertSnapshotParams{
 			RepoID:          job.RepoID,
 			JobID:           job.ID,

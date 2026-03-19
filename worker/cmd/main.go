@@ -10,10 +10,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/jobtoken"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/logger"
 	githubprovider "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/runner"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/storage"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
+	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/apiclient"
 	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/config"
 	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/executor"
 	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/poller"
@@ -51,6 +54,17 @@ func run() error {
 		return fmt.Errorf("create client handler: %w", err)
 	}
 
+	gcs, err := storage.NewClient(context.Background(), storage.Config{
+		Bucket:   cfg.GCS.Bucket,
+		Endpoint: cfg.GCS.Endpoint,
+	}, log)
+	if err != nil {
+		return fmt.Errorf("create gcs client: %w", err)
+	}
+
+	signer := jobtoken.NewSigner([]byte(cfg.HMACSigningKey), 30*time.Minute)
+	api := apiclient.NewClient(cfg.APIBaseURL, signer, log)
+
 	r := runner.New(ch, runner.Config{
 		WorkspaceDir: cfg.WorkspaceDir,
 		ZigzagBin:    cfg.ZigzagBin,
@@ -58,7 +72,7 @@ func run() error {
 		JobTimeout:   cfg.JobTimeout,
 	}, log)
 
-	exec := executor.NewExecutor(queries, r, log)
+	exec := executor.NewExecutor(api, gcs, r, log)
 	p := poller.NewPoller(queries, r, exec, log, pollInterval, cfg.MaxConcurrency)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

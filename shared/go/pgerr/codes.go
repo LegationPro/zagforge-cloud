@@ -9,8 +9,7 @@ import (
 // PostgreSQL error codes.
 // See: https://www.postgresql.org/docs/current/errcodes-appendix.html
 const (
-	UniqueViolation     = "23505"
-	ForeignKeyViolation = "23503"
+	UniqueViolation = "23505"
 )
 
 // IsCode returns true if err is a PgError with the given code.

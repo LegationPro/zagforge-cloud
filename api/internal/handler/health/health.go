@@ -14,8 +14,8 @@ type Handler struct {
 }
 
 type Response struct {
-	Status string  `json:"status"`
-	Reason *string `json:"reason,omitempty"`
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
 }
 
 func NewHandler(pool *pgxpool.Pool) *Handler {
@@ -33,7 +33,7 @@ func (h *Handler) Readiness(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	if err := h.pool.Ping(ctx); err != nil {
-		httputil.WriteJSON(w, http.StatusServiceUnavailable, Response{Status: "unavailable", Reason: new("db unreachable")})
+		httputil.WriteJSON(w, http.StatusServiceUnavailable, Response{Status: "unavailable", Reason: "db unreachable"})
 		return
 	}
 

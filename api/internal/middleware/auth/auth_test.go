@@ -2,7 +2,6 @@ package auth_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/auth"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
 )
 
 func TestAuth_missingToken_returns401(t *testing.T) {
@@ -26,8 +26,8 @@ func TestAuth_missingToken_returns401(t *testing.T) {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
 
-	var body auth.Response
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	body, err := httputil.DecodeJSON[httputil.ErrorResponse](w.Body)
+	if err != nil {
 		t.Fatalf("invalid json: %v", err)
 	}
 	if body.Error == nil || *body.Error != auth.ErrMissingToken.Error() {
@@ -50,8 +50,8 @@ func TestAuth_invalidToken_returns401(t *testing.T) {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
 
-	var body auth.Response
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	body, err := httputil.DecodeJSON[httputil.ErrorResponse](w.Body)
+	if err != nil {
 		t.Fatalf("invalid json: %v", err)
 	}
 	if body.Error == nil || *body.Error != auth.ErrInvalidToken.Error() {

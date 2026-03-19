@@ -49,10 +49,19 @@ func (m *mockClaimer) UpdateJobStatus(_ context.Context, _ store.UpdateJobStatus
 	return nil
 }
 
+func newTestExecutor() *executor.Executor {
+	r := runner.New(&noopCloner{}, runner.Config{}, zap.NewNop())
+	return executor.NewExecutor(nil, nil, r, zap.NewNop())
+}
+
+func newTestRunner() *runner.Runner {
+	return runner.New(&noopCloner{}, runner.Config{}, zap.NewNop())
+}
+
 func TestPoller_Run_shutsDownCleanly(t *testing.T) {
 	claimer := &mockClaimer{claimErr: pgx.ErrNoRows}
-	r := runner.New(&noopCloner{}, runner.Config{}, zap.NewNop())
-	exec := executor.NewExecutor(nil, r, zap.NewNop())
+	r := newTestRunner()
+	exec := newTestExecutor()
 	p := poller.NewPoller(claimer, r, exec, zap.NewNop(), 50*time.Millisecond, 5)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -77,8 +86,8 @@ func TestPoller_Run_shutsDownCleanly(t *testing.T) {
 
 func TestPoller_Run_pollsAtInterval(t *testing.T) {
 	claimer := &mockClaimer{claimErr: pgx.ErrNoRows}
-	r := runner.New(&noopCloner{}, runner.Config{}, zap.NewNop())
-	exec := executor.NewExecutor(nil, r, zap.NewNop())
+	r := newTestRunner()
+	exec := newTestExecutor()
 	p := poller.NewPoller(claimer, r, exec, zap.NewNop(), 50*time.Millisecond, 5)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,8 +116,8 @@ func TestPoller_Run_repoNotFound_marksJobFailed(t *testing.T) {
 		repoErr: pgx.ErrNoRows,
 	}
 
-	r := runner.New(&noopCloner{}, runner.Config{}, zap.NewNop())
-	exec := executor.NewExecutor(nil, r, zap.NewNop())
+	r := newTestRunner()
+	exec := newTestExecutor()
 	p := poller.NewPoller(claimer, r, exec, zap.NewNop(), 50*time.Millisecond, 5)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -141,12 +150,18 @@ func (c *countingClaimer) ClaimJob(_ context.Context) (store.Job, error) {
 	}
 	return store.Job{
 		ID:     pgtype.UUID{Bytes: [16]byte{byte(n)}, Valid: true},
+		RepoID: pgtype.UUID{Bytes: [16]byte{byte(n + 100)}, Valid: true},
 		Branch: "main",
 	}, nil
 }
 
 func (c *countingClaimer) GetRepoForJob(_ context.Context, _ pgtype.UUID) (store.GetRepoForJobRow, error) {
-	return store.GetRepoForJobRow{FullName: "org/repo", InstallationID: 1, GithubRepoID: 1}, nil
+	return store.GetRepoForJobRow{
+		ID:             pgtype.UUID{Bytes: [16]byte{99}, Valid: true},
+		FullName:       "org/repo",
+		InstallationID: 1,
+		GithubRepoID:   1,
+	}, nil
 }
 
 func (c *countingClaimer) UpdateJobStatus(_ context.Context, _ store.UpdateJobStatusParams) error {
@@ -154,22 +169,10 @@ func (c *countingClaimer) UpdateJobStatus(_ context.Context, _ store.UpdateJobSt
 	return nil
 }
 
-// mockRecorder satisfies executor.JobRecorder for tests.
-type mockRecorder struct{}
-
-func (m *mockRecorder) UpdateJobStatus(_ context.Context, _ store.UpdateJobStatusParams) error {
-	return nil
-}
-
-func (m *mockRecorder) InsertSnapshot(_ context.Context, _ store.InsertSnapshotParams) (store.Snapshot, error) {
-	return store.Snapshot{}, nil
-}
-
 func TestPoller_claimsBatchUpToMaxConcurrency(t *testing.T) {
 	claimer := &countingClaimer{total: 10}
-	r := runner.New(&noopCloner{}, runner.Config{}, zap.NewNop())
-	exec := executor.NewExecutor(&mockRecorder{}, r, zap.NewNop())
-	// Max concurrency of 3 — should claim 3 on first tick.
+	r := newTestRunner()
+	exec := newTestExecutor()
 	p := poller.NewPoller(claimer, r, exec, zap.NewNop(), 50*time.Millisecond, 3)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -178,14 +181,10 @@ func TestPoller_claimsBatchUpToMaxConcurrency(t *testing.T) {
 		done <- p.Run(ctx)
 	}()
 
-	// Wait for one tick to complete.
 	time.Sleep(100 * time.Millisecond)
 	cancel()
 	<-done
 
-	// Should have claimed exactly 3 (max concurrency) + 1 (the ErrNoRows that stops the batch).
-	// But since jobs are instant (no-op executor), slots free up immediately.
-	// At minimum, at least 3 should be claimed on the first tick.
 	claimed := claimer.claimed.Load()
 	if claimed < 3 {
 		t.Fatalf("expected at least 3 claims, got %d", claimed)
@@ -193,10 +192,9 @@ func TestPoller_claimsBatchUpToMaxConcurrency(t *testing.T) {
 }
 
 func TestPoller_respectsMaxConcurrency(t *testing.T) {
-	// Claimer that always has jobs.
 	claimer := &countingClaimer{total: 100}
-	r := runner.New(&noopCloner{}, runner.Config{}, zap.NewNop())
-	exec := executor.NewExecutor(&mockRecorder{}, r, zap.NewNop())
+	r := newTestRunner()
+	exec := newTestExecutor()
 	p := poller.NewPoller(claimer, r, exec, zap.NewNop(), 50*time.Millisecond, 2)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -209,7 +207,6 @@ func TestPoller_respectsMaxConcurrency(t *testing.T) {
 	cancel()
 	<-done
 
-	// With max concurrency 2 and ~3 ticks in 150ms, we expect multiple batches.
 	claimed := claimer.claimed.Load()
 	if claimed < 2 {
 		t.Fatalf("expected at least 2 claims, got %d", claimed)

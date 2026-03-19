@@ -64,10 +64,14 @@ services:
       GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET}
       GCS_BUCKET: zagforge-snapshots
       GCS_ENDPOINT: http://fake-gcs:4443/storage/v1/
+      API_BASE_URL: http://api:8080
+      HMAC_SIGNING_KEY: ${HMAC_SIGNING_KEY:-dev-hmac-signing-key-change-me}
     depends_on:
       postgres:
         condition: service_healthy
       fake-gcs:
+        condition: service_healthy
+      api:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully

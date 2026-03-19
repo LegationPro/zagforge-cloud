@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	jobtokenmw "github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/jobtoken"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/validate"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 )
@@ -20,6 +21,11 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	req, err := httputil.DecodeJSON[StartRequest](r.Body)
 	if err != nil {
 		httputil.ErrResponse(w, http.StatusBadRequest, ErrInvalidRequestBody)
+		return
+	}
+
+	if err := validate.Struct(req); err != nil {
+		httputil.ErrResponse(w, http.StatusBadRequest, err)
 		return
 	}
 

@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -10,6 +11,18 @@ import (
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 )
+
+// parseBranch extracts and validates the branch query param.
+func parseBranch(r *http.Request) (string, error) {
+	branch := strings.TrimSpace(r.URL.Query().Get("branch"))
+	if branch == "" {
+		return "", ErrBranchRequired
+	}
+	if len(branch) > maxBranchLength {
+		return "", ErrBranchTooLong
+	}
+	return branch, nil
+}
 
 func (h *Handler) GetSnapshot(w http.ResponseWriter, r *http.Request) {
 	id, err := httputil.ParseUUID(r, "snapshotID")
@@ -39,9 +52,9 @@ func (h *Handler) ListSnapshots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	branch := r.URL.Query().Get("branch")
-	if branch == "" {
-		httputil.ErrResponse(w, http.StatusBadRequest, ErrBranchRequired)
+	branch, err := parseBranch(r)
+	if err != nil {
+		httputil.ErrResponse(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -65,9 +78,9 @@ func (h *Handler) GetLatestSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	branch := r.URL.Query().Get("branch")
-	if branch == "" {
-		httputil.ErrResponse(w, http.StatusBadRequest, ErrBranchRequired)
+	branch, err := parseBranch(r)
+	if err != nil {
+		httputil.ErrResponse(w, http.StatusBadRequest, err)
 		return
 	}
 

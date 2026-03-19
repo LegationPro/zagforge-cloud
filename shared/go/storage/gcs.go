@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"cloud.google.com/go/storage"
+	"go.uber.org/zap"
 	"google.golang.org/api/option"
 )
 
@@ -24,13 +25,14 @@ type Config struct {
 // Client wraps the GCS client for snapshot upload/download.
 type Client struct {
 	bucket *storage.BucketHandle
+	log    *zap.Logger
 	cfg    Config
 }
 
 // NewClient creates a GCS storage client.
 // If cfg.Endpoint is set, it connects to that endpoint (for fake-gcs-server in dev).
 // Otherwise, it uses default GCP credentials.
-func NewClient(ctx context.Context, cfg Config) (*Client, error) {
+func NewClient(ctx context.Context, cfg Config, log *zap.Logger) (*Client, error) {
 	if cfg.Bucket == "" {
 		return nil, ErrBucketRequired
 	}
@@ -50,6 +52,7 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 
 	return &Client{
 		bucket: gcs.Bucket(cfg.Bucket),
+		log:    log,
 		cfg:    cfg,
 	}, nil
 }
@@ -60,7 +63,9 @@ func (c *Client) Upload(ctx context.Context, path string, data []byte) error {
 	w.ContentType = "application/json"
 
 	if _, err := w.Write(data); err != nil {
-		w.Close()
+		if closeErr := w.Close(); closeErr != nil {
+			c.log.Warn("failed to close gcs writer after write error", zap.String("path", path), zap.Error(closeErr))
+		}
 		return fmt.Errorf("write object %q: %w", path, err)
 	}
 
@@ -80,7 +85,11 @@ func (c *Client) Download(ctx context.Context, path string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("open object %q: %w", path, err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			c.log.Warn("failed to close gcs reader", zap.String("path", path), zap.Error(err))
+		}
+	}()
 
 	data, err := io.ReadAll(r)
 	if err != nil {

@@ -20,6 +20,7 @@ import (
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/health"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/webhook"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/auth"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/contenttype"
 	jobtokenmw "github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/jobtoken"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/ratelimit"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/service"
@@ -95,8 +96,9 @@ func run() error {
 		return fmt.Errorf("register health routes: %w", err)
 	}
 
-	// Webhooks — rate limited by IP, higher burst (GitHub sends bursts).
+	// Webhooks — Content-Type + rate limited by IP, higher burst (GitHub sends bursts).
 	internal := r.Group()
+	internal.Use(contenttype.RequireJSON())
 	internal.Use(ratelimit.RateLimit(rdb, ratelimit.RateLimitConfig{
 		MaxRequests: 120,
 		Window:      1 * time.Minute,
@@ -107,8 +109,9 @@ func run() error {
 		return fmt.Errorf("register internal routes: %w", err)
 	}
 
-	// Job callbacks — signed job token auth.
+	// Job callbacks — Content-Type + signed job token auth.
 	callbacks := r.Group()
+	callbacks.Use(contenttype.RequireJSON())
 	callbacks.Use(jobtokenmw.Auth(signer, log))
 	if err := callbacks.Create([]router.Subroute{
 		{Method: router.POST, Path: "/internal/jobs/start", Handler: callbackH.Start},

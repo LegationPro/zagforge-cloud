@@ -27,7 +27,7 @@ func TestLiveness_returns200(t *testing.T) {
 	if body.Status != "ok" {
 		t.Errorf("expected status %q, got %q", "ok", body.Status)
 	}
-	if body.Reason != nil {
-		t.Errorf("expected nil reason, got %q", *body.Reason)
+	if body.Reason != "" {
+		t.Errorf("expected empty reason, got %q", body.Reason)
 	}
 }

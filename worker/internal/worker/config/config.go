@@ -27,6 +27,8 @@ type Config struct {
 	ReportsDir     string
 	JobTimeout     time.Duration
 	MaxConcurrency int
+	APIBaseURL     string
+	HMACSigningKey string
 	GitHub         GitHubConfig
 	GCS            GCSConfig
 }
@@ -89,6 +91,16 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("GCS_BUCKET not set")
 	}
 
+	apiBaseURL := os.Getenv("API_BASE_URL")
+	if apiBaseURL == "" {
+		return nil, fmt.Errorf("API_BASE_URL not set")
+	}
+
+	hmacKey := os.Getenv("HMAC_SIGNING_KEY")
+	if hmacKey == "" {
+		return nil, fmt.Errorf("HMAC_SIGNING_KEY not set")
+	}
+
 	maxConcurrency := defaultMaxConcurrency
 	if raw := os.Getenv("MAX_CONCURRENCY"); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -106,6 +118,8 @@ func LoadConfig() (*Config, error) {
 		ReportsDir:     reportsDir,
 		JobTimeout:     jobTimeout,
 		MaxConcurrency: maxConcurrency,
+		APIBaseURL:     apiBaseURL,
+		HMACSigningKey: hmacKey,
 		GitHub: GitHubConfig{
 			AppID:         appID,
 			PrivateKey:    []byte(ghKey),

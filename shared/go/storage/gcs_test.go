@@ -17,7 +17,7 @@ func TestSnapshotPath(t *testing.T) {
 }
 
 func TestNewClient_emptyBucket_returnsError(t *testing.T) {
-	_, err := NewClient(t.Context(), Config{})
+	_, err := NewClient(t.Context(), Config{}, nil)
 	if err != ErrBucketRequired {
 		t.Fatalf("expected ErrBucketRequired, got %v", err)
 	}

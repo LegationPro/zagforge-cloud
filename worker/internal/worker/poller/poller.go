@@ -107,8 +107,12 @@ func (p *Poller) claimOne(ctx context.Context) error {
 		return fmt.Errorf("get repo for job: %w", err)
 	}
 
+	jobID := job.ID.String()
+	orgID := repo.ID.String()
+	repoIDStr := job.RepoID.String()
+
 	p.log.Info("claimed job",
-		zap.String("job_id", job.ID.String()),
+		zap.String("job_id", jobID),
 		zap.String("repo", repo.FullName),
 		zap.String("branch", job.Branch),
 		zap.String("commit", job.CommitSha),
@@ -116,7 +120,7 @@ func (p *Poller) claimOne(ctx context.Context) error {
 	)
 
 	p.runner.GoWait(func() {
-		p.executor.Execute(context.Background(), job, repo)
+		p.executor.Execute(context.Background(), jobID, orgID, repoIDStr)
 	})
 
 	return nil
