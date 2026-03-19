@@ -75,11 +75,13 @@ func (p *Poller) poll(ctx context.Context) error {
 
 	repo, err := p.claimer.GetRepoForJob(ctx, job.ID)
 	if err != nil {
-		p.claimer.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
+		if statusErr := p.claimer.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
 			ID:           job.ID,
 			Status:       store.JobStatusFailed,
 			ErrorMessage: pgtype.Text{String: "repo not found for job", Valid: true},
-		})
+		}); statusErr != nil {
+			p.log.Error("failed to mark job failed", zap.String("job_id", job.ID.String()), zap.Error(statusErr))
+		}
 		return fmt.Errorf("get repo for job: %w", err)
 	}
 

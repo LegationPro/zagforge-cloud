@@ -12,8 +12,8 @@ import (
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
-	store "github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
+	store "github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 )
 
 const (

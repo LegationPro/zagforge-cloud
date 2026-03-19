@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 )
 
 var GithubApiVersion = "2026-03-10"
@@ -22,16 +23,23 @@ var GithubApiVersion = "2026-03-10"
 // ClientHandler wraps an APIClient and satisfies the provider.Worker interface.
 type ClientHandler struct {
 	client *APIClient
+	log    *zap.Logger
 }
 
 // Compile-time guard: ClientHandler must satisfy provider.Worker.
 var _ Worker = (*ClientHandler)(nil)
 
-func NewClientHandler(client *APIClient) (*ClientHandler, error) {
+func NewClientHandler(client *APIClient, log *zap.Logger) (*ClientHandler, error) {
 	if client == nil {
 		return nil, fmt.Errorf("NewClientHandler: client must not be nil")
 	}
-	return &ClientHandler{client: client}, nil
+	return &ClientHandler{client: client, log: log}, nil
+}
+
+func (h *ClientHandler) closeBody(body io.ReadCloser) {
+	if err := body.Close(); err != nil {
+		h.log.Warn("failed to close response body", zap.Error(err))
+	}
 }
 
 // ValidateWebhook validates the HMAC-SHA256 signature of a GitHub webhook payload,
@@ -107,7 +115,7 @@ func (h *ClientHandler) GenerateCloneToken(ctx context.Context, installationID i
 	if err != nil {
 		return "", fmt.Errorf("failed to call GitHub API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer h.closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
@@ -168,7 +176,7 @@ func (h *ClientHandler) ListRepos(ctx context.Context, installationID int64) ([]
 		if err != nil {
 			return nil, fmt.Errorf("list repos: %w", err)
 		}
-		defer resp.Body.Close()
+		defer h.closeBody(resp.Body)
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)

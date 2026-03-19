@@ -1,0 +1,10 @@
+.env
+.secret/
+.reports/
+.git/
+.bin/
+.cache
+.DS_Store
+*.md
+docs/
+zigzag-reports/

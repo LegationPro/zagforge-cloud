@@ -11,8 +11,8 @@ import (
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 )
 
 // JobService orchestrates job creation with deduplication.
