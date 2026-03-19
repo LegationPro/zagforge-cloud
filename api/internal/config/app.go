@@ -12,6 +12,7 @@ type AppConfig struct {
 	GithubAppWebhookSecret string
 	ClerkSecretKey         string
 	HMACSigningKey         string
+	WatchdogSecret         string
 }
 
 func LoadAppConfig() (*AppConfig, error) {
@@ -47,11 +48,17 @@ func LoadAppConfig() (*AppConfig, error) {
 		return nil, notSetErr("HMAC_SIGNING_KEY")
 	}
 
+	watchdogSecret := os.Getenv("WATCHDOG_SECRET")
+	if watchdogSecret == "" {
+		return nil, notSetErr("WATCHDOG_SECRET")
+	}
+
 	return &AppConfig{
 		GithubAppID:            appID,
 		GithubAppPrivateKey:    privateKeyStr,
 		GithubAppWebhookSecret: webhookSecret,
 		ClerkSecretKey:         clerkKey,
 		HMACSigningKey:         hmacKey,
+		WatchdogSecret:         watchdogSecret,
 	}, nil
 }
