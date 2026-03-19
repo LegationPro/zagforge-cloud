@@ -11,6 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimJob = `-- name: ClaimJob :one
+UPDATE jobs
+SET status = 'running', started_at = now()
+WHERE id = (
+    SELECT id FROM jobs
+    WHERE status = 'queued'
+    ORDER BY created_at ASC
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING id, repo_id, branch, commit_sha, delivery_id, status, error_message, created_at, updated_at, started_at, finished_at
+`
+
+func (q *Queries) ClaimJob(ctx context.Context) (Job, error) {
+	row := q.db.QueryRow(ctx, claimJob)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.RepoID,
+		&i.Branch,
+		&i.CommitSha,
+		&i.DeliveryID,
+		&i.Status,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const createJob = `-- name: CreateJob :one
 INSERT INTO jobs (repo_id, branch, commit_sha, delivery_id)
 VALUES ($1, $2, $3, NULLIF($4, ''))
@@ -112,6 +144,34 @@ func (q *Queries) GetJobByID(ctx context.Context, id pgtype.UUID) (Job, error) {
 		&i.UpdatedAt,
 		&i.StartedAt,
 		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const getRepoForJob = `-- name: GetRepoForJob :one
+SELECT r.id, r.github_repo_id, r.installation_id, r.full_name, r.default_branch
+FROM repositories r
+JOIN jobs j ON j.repo_id = r.id
+WHERE j.id = $1
+`
+
+type GetRepoForJobRow struct {
+	ID             pgtype.UUID
+	GithubRepoID   int64
+	InstallationID int64
+	FullName       string
+	DefaultBranch  string
+}
+
+func (q *Queries) GetRepoForJob(ctx context.Context, id pgtype.UUID) (GetRepoForJobRow, error) {
+	row := q.db.QueryRow(ctx, getRepoForJob, id)
+	var i GetRepoForJobRow
+	err := row.Scan(
+		&i.ID,
+		&i.GithubRepoID,
+		&i.InstallationID,
+		&i.FullName,
+		&i.DefaultBranch,
 	)
 	return i, err
 }
