@@ -15,6 +15,19 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Dockerfile.dev
+    command: >
+      migrate
+        -path /app/api/internal/db/migrations
+        -database postgres://zagforge:zagforge@postgres:5432/zagforge?sslmode=disable
+        up
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -23,16 +36,28 @@ services:
       - "8080:8080"
     volumes:
       - .:/app
+      - ./.reports:/data/reports
     environment:
       APP_ENV: dev
       PORT: "8080"
       DATABASE_URL: postgres://zagforge:zagforge@postgres:5432/zagforge?sslmode=disable
+      REPORTS_DIR: /data/reports
+      ZIGZAG_BIN: zagforge-worker
       GITHUB_APP_ID: ${GITHUB_APP_ID}
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
       GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  smee:
+    image: node:22-alpine
+    command: npx smee-client --url ${SMEE_URL:-https://smee.io/StaYxmPtfVR1Vq1} --target http://api:8080/internal/webhooks/github
+    depends_on:
+      - api
+    restart: unless-stopped
 
 volumes:
   zagforge_pgdata:
