@@ -60,7 +60,17 @@ func run() error {
 	svc := service.NewJobService(database, run, log)
 	wh := handler.NewWebhookHandler(ch, svc, log)
 
+	health := handler.NewHealthHandler(pool)
+
 	r := router.New()
+
+	healthRoutes := r.Group()
+	if err := healthRoutes.Create([]router.Subroute{
+		{Method: router.GET, Path: "/healthz", Handler: health.Liveness},
+		{Method: router.GET, Path: "/readyz", Handler: health.Readiness},
+	}); err != nil {
+		return fmt.Errorf("register health routes: %w", err)
+	}
 
 	internal := r.Group()
 	if err := internal.Create([]router.Subroute{
