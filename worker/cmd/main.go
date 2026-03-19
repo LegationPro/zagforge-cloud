@@ -59,7 +59,7 @@ func run() error {
 	}, log)
 
 	exec := executor.NewExecutor(queries, r, log)
-	p := poller.NewPoller(queries, r, exec, log, pollInterval)
+	p := poller.NewPoller(queries, r, exec, log, pollInterval, cfg.MaxConcurrency)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

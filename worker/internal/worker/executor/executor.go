@@ -12,15 +12,21 @@ import (
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 )
 
-// Executor runs a claimed job: clone → zigzag → snapshot → status update.
-type Executor struct {
-	queries *store.Queries
-	runner  *runner.Runner
-	log     *zap.Logger
+// JobRecorder is the subset of store.Queries the executor needs.
+type JobRecorder interface {
+	UpdateJobStatus(ctx context.Context, arg store.UpdateJobStatusParams) error
+	InsertSnapshot(ctx context.Context, arg store.InsertSnapshotParams) (store.Snapshot, error)
 }
 
-func NewExecutor(queries *store.Queries, runner *runner.Runner, log *zap.Logger) *Executor {
-	return &Executor{queries: queries, runner: runner, log: log}
+// Executor runs a claimed job: clone → zigzag → snapshot → status update.
+type Executor struct {
+	recorder JobRecorder
+	runner   *runner.Runner
+	log      *zap.Logger
+}
+
+func NewExecutor(recorder JobRecorder, runner *runner.Runner, log *zap.Logger) *Executor {
+	return &Executor{recorder: recorder, runner: runner, log: log}
 }
 
 func (e *Executor) Execute(ctx context.Context, job store.Job, repo store.GetRepoForJobRow) {
@@ -40,18 +46,17 @@ func (e *Executor) Execute(ctx context.Context, job store.Job, repo store.GetRep
 			zap.String("repo", repo.FullName),
 			zap.Error(err),
 		)
-		err = e.queries.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
+		if statusErr := e.recorder.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
 			ID:           job.ID,
 			Status:       store.JobStatusFailed,
 			ErrorMessage: pgtype.Text{String: err.Error(), Valid: true},
-		})
-		if err != nil {
-			e.log.Error("failed to update job status", zap.String("job_id", job.ID.String()), zap.Error(err))
+		}); statusErr != nil {
+			e.log.Error("failed to update job status", zap.String("job_id", job.ID.String()), zap.Error(statusErr))
 		}
 		return
 	}
 
-	_, snapErr := e.queries.InsertSnapshot(ctx, store.InsertSnapshotParams{
+	if _, snapErr := e.recorder.InsertSnapshot(ctx, store.InsertSnapshotParams{
 		RepoID:          job.RepoID,
 		JobID:           job.ID,
 		Branch:          job.Branch,
@@ -60,17 +65,15 @@ func (e *Executor) Execute(ctx context.Context, job store.Job, repo store.GetRep
 		SnapshotVersion: 1,
 		ZigzagVersion:   result.ZigzagVersion,
 		SizeBytes:       result.SizeBytes,
-	})
-	if snapErr != nil {
+	}); snapErr != nil {
 		e.log.Error("failed to insert snapshot", zap.String("job_id", job.ID.String()), zap.Error(snapErr))
 	}
 
-	err = e.queries.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
+	if statusErr := e.recorder.UpdateJobStatus(ctx, store.UpdateJobStatusParams{
 		ID:     job.ID,
 		Status: store.JobStatusSucceeded,
-	})
-	if err != nil {
-		e.log.Error("failed to update job status", zap.String("job_id", job.ID.String()), zap.Error(err))
+	}); statusErr != nil {
+		e.log.Error("failed to update job status", zap.String("job_id", job.ID.String()), zap.Error(statusErr))
 	}
 
 	e.log.Info("job succeeded",
