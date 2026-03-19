@@ -1,0 +1,7 @@
+services:
+  smee:
+    image: node:22-alpine
+    command: npx smee-client --url ${SMEE_URL:-https://smee.io/StaYxmPtfVR1Vq1} --target http://api:8080/internal/webhooks/github
+    depends_on:
+      - api
+    restart: unless-stopped
