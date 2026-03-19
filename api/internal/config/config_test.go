@@ -13,6 +13,7 @@ var allEnvVars = []string{
 	"PORT",
 	"DATABASE_URL", "REDIS_URL",
 	"GCS_BUCKET", "GCS_ENDPOINT",
+	"CLOUD_TASKS_PROJECT", "CLOUD_TASKS_LOCATION", "CLOUD_TASKS_QUEUE", "CLOUD_TASKS_WORKER_URL",
 }
 
 // setEnv saves originals, sets the provided map, and unsets everything else in allEnvVars.
@@ -156,5 +157,72 @@ func TestLoad_optionalGCSEndpoint(t *testing.T) {
 	}
 	if cfg.GCS.Endpoint != "http://localhost:4443" {
 		t.Errorf("expected GCS Endpoint %q, got %q", "http://localhost:4443", cfg.GCS.Endpoint)
+	}
+}
+
+func TestCloudTasksConfig_Enabled_allSet(t *testing.T) {
+	c := CloudTasksConfig{
+		Project:   "my-project",
+		Location:  "us-central1",
+		Queue:     "jobs",
+		WorkerURL: "https://worker.example.com",
+	}
+	if !c.Enabled() {
+		t.Fatal("expected Enabled() = true when all fields set")
+	}
+}
+
+func TestCloudTasksConfig_Enabled_partiallySet(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  CloudTasksConfig
+	}{
+		{"missing project", CloudTasksConfig{Location: "us", Queue: "q", WorkerURL: "url"}},
+		{"missing location", CloudTasksConfig{Project: "p", Queue: "q", WorkerURL: "url"}},
+		{"missing queue", CloudTasksConfig{Project: "p", Location: "us", WorkerURL: "url"}},
+		{"missing worker_url", CloudTasksConfig{Project: "p", Location: "us", Queue: "q"}},
+		{"all empty", CloudTasksConfig{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.cfg.Enabled() {
+				t.Fatal("expected Enabled() = false when fields missing")
+			}
+		})
+	}
+}
+
+func TestLoad_cloudTasksConfig(t *testing.T) {
+	env := validEnv()
+	env["CLOUD_TASKS_PROJECT"] = "my-project"
+	env["CLOUD_TASKS_LOCATION"] = "us-central1"
+	env["CLOUD_TASKS_QUEUE"] = "jobs-queue"
+	env["CLOUD_TASKS_WORKER_URL"] = "https://worker.run.app"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.CloudTasks.Enabled() {
+		t.Fatal("expected CloudTasks to be enabled")
+	}
+	if cfg.CloudTasks.Project != "my-project" {
+		t.Errorf("expected Project %q, got %q", "my-project", cfg.CloudTasks.Project)
+	}
+	if cfg.CloudTasks.WorkerURL != "https://worker.run.app" {
+		t.Errorf("expected WorkerURL %q, got %q", "https://worker.run.app", cfg.CloudTasks.WorkerURL)
+	}
+}
+
+func TestLoad_cloudTasksNotConfigured(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CloudTasks.Enabled() {
+		t.Fatal("expected CloudTasks to be disabled when env vars not set")
 	}
 }

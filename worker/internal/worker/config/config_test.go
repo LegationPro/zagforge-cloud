@@ -14,6 +14,7 @@ var allEnvVars = []string{
 	"API_BASE_URL", "HMAC_SIGNING_KEY",
 	"WORKSPACE_DIR", "ZIGZAG_BIN", "REPORTS_DIR",
 	"JOB_TIMEOUT", "MAX_CONCURRENCY",
+	"WORKER_MODE", "PORT",
 }
 
 func setEnv(t *testing.T, vars map[string]string) {
@@ -183,5 +184,38 @@ func TestLoadConfig_maxConcurrencyOverride(t *testing.T) {
 	}
 	if cfg.MaxConcurrency != 10 {
 		t.Errorf("expected MaxConcurrency 10, got %d", cfg.MaxConcurrency)
+	}
+}
+
+func TestLoadConfig_workerModeDefaults(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.WorkerMode != "poll" {
+		t.Errorf("expected default WorkerMode %q, got %q", "poll", cfg.WorkerMode)
+	}
+	if cfg.Port != "8080" {
+		t.Errorf("expected default Port %q, got %q", "8080", cfg.Port)
+	}
+}
+
+func TestLoadConfig_workerModeHTTP(t *testing.T) {
+	env := validEnv()
+	env["WORKER_MODE"] = "http"
+	env["PORT"] = "9090"
+	setEnv(t, env)
+
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.WorkerMode != "http" {
+		t.Errorf("expected WorkerMode %q, got %q", "http", cfg.WorkerMode)
+	}
+	if cfg.Port != "9090" {
+		t.Errorf("expected Port %q, got %q", "9090", cfg.Port)
 	}
 }
