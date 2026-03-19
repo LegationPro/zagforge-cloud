@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
 )
 
 func TestParseUUID_valid(t *testing.T) {

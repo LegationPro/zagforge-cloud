@@ -10,7 +10,7 @@ import (
 	clerkjwt "github.com/clerk/clerk-sdk-go/v2/jwt"
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
 )
 
 type contextKey string

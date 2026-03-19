@@ -1,4 +1,4 @@
-module github.com/LegationPro/zagforge-mvp-impl/shared/go
+module github.com/LegationPro/zagforge/shared/go
 
 go 1.26.1
 

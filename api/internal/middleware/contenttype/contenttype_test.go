@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/contenttype"
+	"github.com/LegationPro/zagforge/api/internal/middleware/contenttype"
 )
 
 func okHandler() http.Handler {

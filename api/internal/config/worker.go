@@ -6,39 +6,24 @@ import (
 )
 
 type WorkerConfig struct {
-	WorkspaceDir string // base dir for temporary clone directories
-	ZigzagBin    string // path to the zigzag binary
-	ReportsDir   string // absolute path where zigzag writes reports
+	WorkspaceDir string `env:"WORKSPACE_DIR"` // base dir for temporary clone directories
+	ZigzagBin    string `env:"ZIGZAG_BIN"    envDefault:"zigzag"`
+	ReportsDir   string `env:"REPORTS_DIR"    envDefault:"zigzag-reports"` // absolute path where zigzag writes reports
 }
 
-func LoadWorkerConfig() (*WorkerConfig, error) {
-	workspaceDir := os.Getenv("WORKSPACE_DIR")
-	if workspaceDir == "" {
-		workspaceDir = filepath.Join(os.TempDir(), "zagforge-workspace")
-	}
-
-	zigzagBin := os.Getenv("ZIGZAG_BIN")
-	if zigzagBin == "" {
-		zigzagBin = "zigzag"
-	}
-
-	reportsDir := os.Getenv("REPORTS_DIR")
-	if reportsDir == "" {
-		reportsDir = "zigzag-reports"
+func (w *WorkerConfig) init() error {
+	if w.WorkspaceDir == "" {
+		w.WorkspaceDir = filepath.Join(os.TempDir(), "zagforge-workspace")
 	}
 
 	// Resolve to absolute so it stays valid when zigzag runs inside a temp clone dir.
-	if !filepath.IsAbs(reportsDir) {
+	if !filepath.IsAbs(w.ReportsDir) {
 		cwd, err := os.Getwd()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		reportsDir = filepath.Join(cwd, reportsDir)
+		w.ReportsDir = filepath.Join(cwd, w.ReportsDir)
 	}
 
-	return &WorkerConfig{
-		WorkspaceDir: workspaceDir,
-		ZigzagBin:    zigzagBin,
-		ReportsDir:   reportsDir,
-	}, nil
+	return nil
 }

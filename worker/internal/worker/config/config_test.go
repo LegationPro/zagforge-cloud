@@ -4,14 +4,26 @@ import (
 	"os"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/config"
+	"github.com/LegationPro/zagforge/worker/internal/worker/config"
 )
+
+var allEnvVars = []string{
+	"DATABASE_URL", "APP_ENV",
+	"GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_WEBHOOK_SECRET",
+	"GCS_BUCKET", "GCS_ENDPOINT",
+	"API_BASE_URL", "HMAC_SIGNING_KEY",
+	"WORKSPACE_DIR", "ZIGZAG_BIN", "REPORTS_DIR",
+	"JOB_TIMEOUT", "MAX_CONCURRENCY",
+	"WORKER_MODE", "PORT",
+	"HMAC_SIGNING_KEY_PREV",
+}
 
 func setEnv(t *testing.T, vars map[string]string) {
 	t.Helper()
-	originals := make(map[string]string, len(vars))
-	for k := range vars {
+	originals := make(map[string]string, len(allEnvVars))
+	for _, k := range allEnvVars {
 		originals[k] = os.Getenv(k)
+		os.Unsetenv(k)
 	}
 	t.Cleanup(func() {
 		for k, v := range originals {
@@ -112,15 +124,28 @@ func TestLoadConfig_privateKeyNewlineConversion(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_missingDatabaseURL(t *testing.T) {
-	env := validEnv()
-	delete(env, "DATABASE_URL")
-	setEnv(t, env)
-	os.Unsetenv("DATABASE_URL")
+func TestLoadConfig_missingRequired(t *testing.T) {
+	requiredVars := []string{
+		"DATABASE_URL",
+		"GITHUB_APP_ID",
+		"GITHUB_APP_PRIVATE_KEY",
+		"GITHUB_APP_WEBHOOK_SECRET",
+		"GCS_BUCKET",
+		"API_BASE_URL",
+		"HMAC_SIGNING_KEY",
+	}
 
-	_, err := config.LoadConfig()
-	if err == nil {
-		t.Fatal("expected error for missing DATABASE_URL")
+	for _, missing := range requiredVars {
+		t.Run(missing, func(t *testing.T) {
+			env := validEnv()
+			delete(env, missing)
+			setEnv(t, env)
+
+			_, err := config.LoadConfig()
+			if err == nil {
+				t.Fatalf("expected error for missing %s", missing)
+			}
+		})
 	}
 }
 
@@ -135,26 +160,63 @@ func TestLoadConfig_invalidAppID(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_missingPrivateKey(t *testing.T) {
+func TestLoadConfig_jobTimeoutOverride(t *testing.T) {
 	env := validEnv()
-	delete(env, "GITHUB_APP_PRIVATE_KEY")
+	env["JOB_TIMEOUT"] = "10m"
 	setEnv(t, env)
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
 
-	_, err := config.LoadConfig()
-	if err == nil {
-		t.Fatal("expected error for missing GITHUB_APP_PRIVATE_KEY")
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.JobTimeout.String() != "10m0s" {
+		t.Errorf("expected JobTimeout 10m0s, got %s", cfg.JobTimeout)
 	}
 }
 
-func TestLoadConfig_missingWebhookSecret(t *testing.T) {
+func TestLoadConfig_maxConcurrencyOverride(t *testing.T) {
 	env := validEnv()
-	delete(env, "GITHUB_APP_WEBHOOK_SECRET")
+	env["MAX_CONCURRENCY"] = "10"
 	setEnv(t, env)
-	os.Unsetenv("GITHUB_APP_WEBHOOK_SECRET")
 
-	_, err := config.LoadConfig()
-	if err == nil {
-		t.Fatal("expected error for missing GITHUB_APP_WEBHOOK_SECRET")
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MaxConcurrency != 10 {
+		t.Errorf("expected MaxConcurrency 10, got %d", cfg.MaxConcurrency)
+	}
+}
+
+func TestLoadConfig_workerModeDefaults(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.WorkerMode != "poll" {
+		t.Errorf("expected default WorkerMode %q, got %q", "poll", cfg.WorkerMode)
+	}
+	if cfg.Port != "8080" {
+		t.Errorf("expected default Port %q, got %q", "8080", cfg.Port)
+	}
+}
+
+func TestLoadConfig_workerModeHTTP(t *testing.T) {
+	env := validEnv()
+	env["WORKER_MODE"] = "http"
+	env["PORT"] = "9090"
+	setEnv(t, env)
+
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.WorkerMode != "http" {
+		t.Errorf("expected WorkerMode %q, got %q", "http", cfg.WorkerMode)
+	}
+	if cfg.Port != "9090" {
+		t.Errorf("expected Port %q, got %q", "9090", cfg.Port)
 	}
 }

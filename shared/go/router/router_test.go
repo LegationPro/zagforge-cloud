@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/router"
+	"github.com/LegationPro/zagforge/shared/go/router"
 )
 
 func ok(w http.ResponseWriter, _ *http.Request) {

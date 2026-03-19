@@ -257,6 +257,37 @@ func (q *Queries) MarkJobSuperseded(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const timeoutRunningJobs = `-- name: TimeoutRunningJobs :execrows
+UPDATE jobs
+SET status = 'failed',
+    error_message = 'Job timed out',
+    finished_at = now()
+WHERE status = 'running'
+  AND started_at < now() - make_interval(mins => $1::int)
+`
+
+func (q *Queries) TimeoutRunningJobs(ctx context.Context, dollar_1 int32) (int64, error) {
+	result, err := q.db.Exec(ctx, timeoutRunningJobs, dollar_1)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateJobCommitSHA = `-- name: UpdateJobCommitSHA :exec
+UPDATE jobs SET commit_sha = $2 WHERE id = $1 AND status = 'queued'
+`
+
+type UpdateJobCommitSHAParams struct {
+	ID        pgtype.UUID
+	CommitSha string
+}
+
+func (q *Queries) UpdateJobCommitSHA(ctx context.Context, arg UpdateJobCommitSHAParams) error {
+	_, err := q.db.Exec(ctx, updateJobCommitSHA, arg.ID, arg.CommitSha)
+	return err
+}
+
 const updateJobStatus = `-- name: UpdateJobStatus :exec
 UPDATE jobs
 SET status = $2,

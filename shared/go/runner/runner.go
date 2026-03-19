@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
+	github "github.com/LegationPro/zagforge/shared/go/provider/github"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )

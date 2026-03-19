@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/router"
+	"github.com/LegationPro/zagforge/shared/go/router"
 )
 
 func TestGroup_Create_registersAllMethods(t *testing.T) {

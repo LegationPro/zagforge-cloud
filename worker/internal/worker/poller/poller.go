@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/runner"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
-	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/worker/executor"
+	"github.com/LegationPro/zagforge/shared/go/runner"
+	"github.com/LegationPro/zagforge/shared/go/store"
+	"github.com/LegationPro/zagforge/worker/internal/worker/executor"
 )
 
 // JobClaimer is the subset of store.Queries the poller needs.

@@ -5,7 +5,7 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
 )
 
 var ErrUnsupportedMediaType = errors.New("Content-Type must be application/json")

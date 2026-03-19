@@ -8,9 +8,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/runner"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/storage"
-	"github.com/LegationPro/zagforge-mvp-impl/worker/internal/apiclient"
+	"github.com/LegationPro/zagforge/shared/go/runner"
+	"github.com/LegationPro/zagforge/shared/go/storage"
+	"github.com/LegationPro/zagforge/worker/internal/apiclient"
 )
 
 // Executor runs a claimed job: start callback → clone → zigzag → GCS upload → complete callback.

@@ -10,8 +10,8 @@ import (
 
 	"go.uber.org/zap"
 
-	jobtokenmw "github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/jobtoken"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/jobtoken"
+	jobtokenmw "github.com/LegationPro/zagforge/api/internal/middleware/jobtoken"
+	"github.com/LegationPro/zagforge/shared/go/jobtoken"
 )
 
 func signer() *jobtoken.Signer {

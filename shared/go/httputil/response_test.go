@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
 )
 
 type testData struct {

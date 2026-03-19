@@ -10,7 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/ratelimit"
+	"github.com/LegationPro/zagforge/api/internal/middleware/ratelimit"
 )
 
 func setupRedis(t *testing.T) *redis.Client {

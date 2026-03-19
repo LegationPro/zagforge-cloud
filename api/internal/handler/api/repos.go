@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
 )
 
 func (h *Handler) GetRepo(w http.ResponseWriter, r *http.Request) {

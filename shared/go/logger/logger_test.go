@@ -3,7 +3,7 @@ package logger_test
 import (
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/logger"
+	"github.com/LegationPro/zagforge/shared/go/logger"
 )
 
 func TestNew_dev_returnsLogger(t *testing.T) {

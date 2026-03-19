@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
-	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/api"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
+	dbpkg "github.com/LegationPro/zagforge/api/internal/db"
+	"github.com/LegationPro/zagforge/api/internal/handler/api"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
 )
 
 // newHandler creates a Handler with a nil DB pool (sufficient for param-validation tests).

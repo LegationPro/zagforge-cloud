@@ -5,7 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
-	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
+	dbpkg "github.com/LegationPro/zagforge/api/internal/db"
 )
 
 const maxBranchLength = 256

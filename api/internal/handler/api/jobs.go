@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
+	"github.com/LegationPro/zagforge/shared/go/store"
 )
 
 func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {

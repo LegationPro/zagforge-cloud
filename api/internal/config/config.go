@@ -3,75 +3,62 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 )
 
-func notSetErr(envVar string) error {
-	return fmt.Errorf("%q environment variable not set", envVar)
-}
-
 type DBConfig struct {
-	URL string
+	URL string `env:"DATABASE_URL,required"`
 }
 
 type RedisConfig struct {
-	URL string
+	URL string `env:"REDIS_URL,required"`
 }
 
 type GCSConfig struct {
-	Bucket   string
-	Endpoint string // override for fake-gcs-server in dev
+	Bucket   string `env:"GCS_BUCKET,required"`
+	Endpoint string `env:"GCS_ENDPOINT"` // override for fake-gcs-server in dev
+}
+
+type CloudTasksConfig struct {
+	Project   string `env:"CLOUD_TASKS_PROJECT"`
+	Location  string `env:"CLOUD_TASKS_LOCATION"`
+	Queue     string `env:"CLOUD_TASKS_QUEUE"`
+	WorkerURL string `env:"CLOUD_TASKS_WORKER_URL"`
+}
+
+// Enabled returns true when all Cloud Tasks fields are set.
+func (c CloudTasksConfig) Enabled() bool {
+	return c.Project != "" && c.Location != "" && c.Queue != "" && c.WorkerURL != ""
 }
 
 type Config struct {
-	App    *AppConfig
-	Server *ServerConfig
-	DB     *DBConfig
-	Redis  *RedisConfig
-	GCS    *GCSConfig
+	App        AppConfig        `envPrefix:""`
+	Server     ServerConfig     `envPrefix:""`
+	DB         DBConfig         `envPrefix:""`
+	Redis      RedisConfig      `envPrefix:""`
+	GCS        GCSConfig        `envPrefix:""`
+	CloudTasks CloudTasksConfig `envPrefix:""`
 }
 
 func Load() (*Config, error) {
 	if os.Getenv("APP_ENV") == "dev" {
 		if envFile := os.Getenv("ENV_FILE"); envFile != "" {
-			err := godotenv.Load(envFile)
-			if err != nil {
+			if err := godotenv.Load(envFile); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	app, err := LoadAppConfig()
-	if err != nil {
-		return nil, err
-	}
-	server, err := LoadServerConfig()
-	if err != nil {
-		return nil, err
-	}
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return nil, notSetErr("DATABASE_URL")
-	}
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		return nil, notSetErr("REDIS_URL")
+	var cfg Config
+	if err := env.Parse(&cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
-	gcsBucket := os.Getenv("GCS_BUCKET")
-	if gcsBucket == "" {
-		return nil, notSetErr("GCS_BUCKET")
-	}
+	// Env vars often store PEM keys with literal \n instead of real newlines.
+	cfg.App.GithubAppPrivateKey = strings.ReplaceAll(cfg.App.GithubAppPrivateKey, `\n`, "\n")
 
-	return &Config{
-		App:    app,
-		Server: server,
-		DB:     &DBConfig{URL: dbURL},
-		Redis:  &RedisConfig{URL: redisURL},
-		GCS: &GCSConfig{
-			Bucket:   gcsBucket,
-			Endpoint: os.Getenv("GCS_ENDPOINT"),
-		},
-	}, nil
+	return &cfg, nil
 }

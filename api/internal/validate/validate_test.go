@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/validate"
+	"github.com/LegationPro/zagforge/api/internal/validate"
 )
 
 type sampleRequest struct {

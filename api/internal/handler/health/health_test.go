@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/health"
+	"github.com/LegationPro/zagforge/api/internal/handler/health"
 )
 
 func TestLiveness_returns200(t *testing.T) {

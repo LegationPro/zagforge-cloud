@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/webhook"
-	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
+	"github.com/LegationPro/zagforge/api/internal/handler/webhook"
+	github "github.com/LegationPro/zagforge/shared/go/provider/github"
 	"go.uber.org/zap"
 )
 

@@ -9,8 +9,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/jobtoken"
+	"github.com/LegationPro/zagforge/shared/go/httputil"
+	"github.com/LegationPro/zagforge/shared/go/jobtoken"
 )
 
 type contextKey string

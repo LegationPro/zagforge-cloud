@@ -13,21 +13,24 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/config"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
-	apihandler "github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/api"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/callback"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/health"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/webhook"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/auth"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/contenttype"
-	jobtokenmw "github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/jobtoken"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/ratelimit"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/service"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/jobtoken"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/logger"
-	githubprovider "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
-	"github.com/LegationPro/zagforge-mvp-impl/shared/go/router"
+	"github.com/LegationPro/zagforge/api/internal/config"
+	"github.com/LegationPro/zagforge/api/internal/db"
+	"github.com/LegationPro/zagforge/api/internal/engine"
+	apihandler "github.com/LegationPro/zagforge/api/internal/handler/api"
+	"github.com/LegationPro/zagforge/api/internal/handler/callback"
+	"github.com/LegationPro/zagforge/api/internal/handler/health"
+	"github.com/LegationPro/zagforge/api/internal/handler/watchdog"
+	"github.com/LegationPro/zagforge/api/internal/handler/webhook"
+	"github.com/LegationPro/zagforge/api/internal/middleware/auth"
+	"github.com/LegationPro/zagforge/api/internal/middleware/contenttype"
+	jobtokenmw "github.com/LegationPro/zagforge/api/internal/middleware/jobtoken"
+	"github.com/LegationPro/zagforge/api/internal/middleware/ratelimit"
+	"github.com/LegationPro/zagforge/api/internal/middleware/watchdogauth"
+	"github.com/LegationPro/zagforge/api/internal/service"
+	"github.com/LegationPro/zagforge/shared/go/jobtoken"
+	"github.com/LegationPro/zagforge/shared/go/logger"
+	githubprovider "github.com/LegationPro/zagforge/shared/go/provider/github"
+	"github.com/LegationPro/zagforge/shared/go/router"
 )
 
 func run() error {
@@ -78,12 +81,40 @@ func run() error {
 	clerk.SetKey(c.App.ClerkSecretKey)
 
 	signer := jobtoken.NewSigner([]byte(c.App.HMACSigningKey), 30*time.Minute)
+	if c.App.HMACSigningKeyPrev != "" {
+		signer = signer.WithPreviousKey([]byte(c.App.HMACSigningKeyPrev))
+		log.Info("HMAC key rotation active: accepting both current and previous signing keys")
+	}
 
-	svc := service.NewJobService(database, log)
+	// Cloud Tasks enqueuer (or noop for local dev).
+	var enqueuer engine.TaskEnqueuer
+	if c.CloudTasks.Enabled() {
+		ct, err := engine.NewCloudTasksEnqueuer(context.Background(), engine.CloudTasksConfig{
+			Project:   c.CloudTasks.Project,
+			Location:  c.CloudTasks.Location,
+			Queue:     c.CloudTasks.Queue,
+			WorkerURL: c.CloudTasks.WorkerURL,
+		})
+		if err != nil {
+			return fmt.Errorf("create cloud tasks enqueuer: %w", err)
+		}
+		defer func() { _ = ct.Close() }()
+		enqueuer = ct
+		log.Info("cloud tasks enqueuer enabled",
+			zap.String("queue", c.CloudTasks.Queue),
+			zap.String("worker_url", c.CloudTasks.WorkerURL),
+		)
+	} else {
+		enqueuer = engine.NewNoopEnqueuer(log)
+		log.Info("cloud tasks not configured, using noop enqueuer (poller mode)")
+	}
+
+	svc := service.NewJobService(database, log, enqueuer, signer)
 	wh := webhook.NewHandler(ch, svc, log)
 	healthH := health.NewHandler(pool)
 	apiH := apihandler.NewHandler(database, log)
 	callbackH := callback.NewHandler(database, ch, log)
+	watchdogH := watchdog.NewHandler(database, log)
 
 	r := router.New()
 
@@ -118,6 +149,15 @@ func run() error {
 		{Method: router.POST, Path: "/internal/jobs/complete", Handler: callbackH.Complete},
 	}); err != nil {
 		return fmt.Errorf("register callback routes: %w", err)
+	}
+
+	// Watchdog — shared secret auth (Cloud Scheduler in production uses OIDC).
+	watchdogRoutes := r.Group()
+	watchdogRoutes.Use(watchdogauth.SharedSecret(c.App.WatchdogSecret))
+	if err := watchdogRoutes.Create([]router.Subroute{
+		{Method: router.POST, Path: "/internal/watchdog/timeout", Handler: watchdogH.Timeout},
+	}); err != nil {
+		return fmt.Errorf("register watchdog routes: %w", err)
 	}
 
 	// API v1 — auth first (rejects unauthenticated), then rate limit by user ID.

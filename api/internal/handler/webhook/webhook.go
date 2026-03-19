@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
+	github "github.com/LegationPro/zagforge/shared/go/provider/github"
 	"go.uber.org/zap"
 )
 

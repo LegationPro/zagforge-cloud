@@ -3,7 +3,7 @@ package db
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	store "github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
+	store "github.com/LegationPro/zagforge/shared/go/store"
 )
 
 // DB wraps the connection pool and the sqlc-generated query interface.
