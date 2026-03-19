@@ -26,6 +26,12 @@ WHERE repo_id = $1
 ORDER BY created_at DESC
 LIMIT $3;
 
+-- name: GetRepoForJob :one
+SELECT r.id, r.github_repo_id, r.installation_id, r.full_name, r.default_branch
+FROM repositories r
+JOIN jobs j ON j.repo_id = r.id
+WHERE j.id = $1;
+
 -- name: ClaimJob :one
 UPDATE jobs
 SET status = 'running', started_at = now()
