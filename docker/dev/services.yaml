@@ -32,6 +32,7 @@ services:
       HMAC_SIGNING_KEY: ${HMAC_SIGNING_KEY:-dev-hmac-signing-key-change-me}
       GCS_BUCKET: zagforge-snapshots
       GCS_ENDPOINT: http://fake-gcs:4443/storage/v1/
+      WATCHDOG_SECRET: ${WATCHDOG_SECRET:-dev-watchdog-secret-change-me}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
       interval: 5s

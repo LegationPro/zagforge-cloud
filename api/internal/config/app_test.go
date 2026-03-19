@@ -35,6 +35,7 @@ func TestLoadAppConfig(t *testing.T) {
 				"GITHUB_APP_PRIVATE_KEY":    "another_secret_key",
 				"CLERK_SECRET_KEY":          "sk_test_xxx",
 				"HMAC_SIGNING_KEY":          "test-hmac-key",
+				"WATCHDOG_SECRET":           "test-watchdog-secret",
 			},
 			expectError:    false,
 			expectedAppID:  2895893256896859,
@@ -52,6 +53,7 @@ func TestLoadAppConfig(t *testing.T) {
 				"GITHUB_APP_PRIVATE_KEY":    os.Getenv("GITHUB_APP_PRIVATE_KEY"),
 				"CLERK_SECRET_KEY":          os.Getenv("CLERK_SECRET_KEY"),
 				"HMAC_SIGNING_KEY":          os.Getenv("HMAC_SIGNING_KEY"),
+				"WATCHDOG_SECRET":           os.Getenv("WATCHDOG_SECRET"),
 			}
 
 			// Restore original environment variables after test

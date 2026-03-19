@@ -123,6 +123,15 @@ func run() error {
 		return fmt.Errorf("register callback routes: %w", err)
 	}
 
+	// Watchdog — shared secret auth (Cloud Scheduler in production uses OIDC).
+	watchdogRoutes := r.Group()
+	watchdogRoutes.Use(watchdogauth.SharedSecret(c.App.WatchdogSecret))
+	if err := watchdogRoutes.Create([]router.Subroute{
+		{Method: router.POST, Path: "/internal/watchdog/timeout", Handler: watchdogH.Timeout},
+	}); err != nil {
+		return fmt.Errorf("register watchdog routes: %w", err)
+	}
+
 	// API v1 — auth first (rejects unauthenticated), then rate limit by user ID.
 	v1 := r.Group()
 	v1.Use(auth.Auth(log))
