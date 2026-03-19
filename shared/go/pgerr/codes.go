@@ -15,8 +15,7 @@ const (
 
 // IsCode returns true if err is a PgError with the given code.
 func IsCode(err error, code string) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		return pgErr.Code == code
 	}
 	return false
