@@ -108,16 +108,22 @@ func run() error {
 	defer cancel()
 	<-ctx.Done()
 
-	log.Info("shutting down server")
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	log.Info("shutting down server", zap.Int64("in_flight_jobs", run.InFlight()))
+
+	// 1. Stop accepting new HTTP requests.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown: %w", err)
 	}
+	log.Info("http server stopped, draining jobs")
 
-	log.Info("waiting for in-flight jobs to complete")
-	run.Wait()
+	// 2. Wait for in-flight jobs with progress logging and hard timeout.
+	if err := run.Drain(2*time.Minute, 5*time.Second); err != nil {
+		return err
+	}
+
 	log.Info("server stopped")
 	return nil
 }
