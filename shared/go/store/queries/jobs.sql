@@ -51,3 +51,6 @@ SET status = $2,
     started_at    = CASE WHEN $2 = 'running' THEN now() ELSE started_at END,
     finished_at   = CASE WHEN $2 IN ('succeeded', 'failed', 'cancelled', 'superseded') THEN now() ELSE finished_at END
 WHERE id = $1;
+
+-- name: GetJobForUpdate :one
+SELECT * FROM jobs WHERE id = $1 FOR UPDATE;

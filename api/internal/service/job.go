@@ -2,21 +2,20 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/pgerr"
 	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 )
 
 // JobService orchestrates job creation with deduplication.
-// It satisfies handler.pushHandler.
+// It satisfies webhook.PushHandler.
 type JobService struct {
 	db  *dbpkg.DB
 	log *zap.Logger
@@ -36,7 +35,7 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 	}
 
 	defer func() {
-		if err := tx.Rollback(context.Background()); err != nil && !errors.Is(err, sql.ErrTxDone) && err.Error() != "tx is closed" {
+		if err := tx.Rollback(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			s.log.Warn("rollback error", zap.Error(err))
 		}
 	}()
@@ -89,8 +88,7 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 		Column4:   deliveryID,
 	})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if pgerr.IsCode(err, pgerr.UniqueViolation) {
 			return nil // duplicate delivery, no-op
 		}
 		return fmt.Errorf("create job: %w", err)

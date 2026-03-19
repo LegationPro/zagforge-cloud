@@ -15,10 +15,15 @@ import (
 
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/config"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
-	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler"
+	apihandler "github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/api"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/callback"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/health"
+	"github.com/LegationPro/zagforge-mvp-impl/api/internal/handler/webhook"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/auth"
+	jobtokenmw "github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/jobtoken"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/middleware/ratelimit"
 	"github.com/LegationPro/zagforge-mvp-impl/api/internal/service"
+	"github.com/LegationPro/zagforge-mvp-impl/shared/go/jobtoken"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/logger"
 	githubprovider "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/router"
@@ -71,18 +76,21 @@ func run() error {
 
 	clerk.SetKey(c.App.ClerkSecretKey)
 
+	signer := jobtoken.NewSigner([]byte(c.App.HMACSigningKey), 30*time.Minute)
+
 	svc := service.NewJobService(database, log)
-	wh := handler.NewWebhookHandler(ch, svc, log)
-	health := handler.NewHealthHandler(pool)
-	api := handler.NewAPIHandler(database, log)
+	wh := webhook.NewHandler(ch, svc, log)
+	healthH := health.NewHandler(pool)
+	apiH := apihandler.NewHandler(database, log)
+	callbackH := callback.NewHandler(database, ch, log)
 
 	r := router.New()
 
 	// Health — no auth, no rate limit.
 	healthRoutes := r.Group()
 	if err := healthRoutes.Create([]router.Subroute{
-		{Method: router.GET, Path: "/healthz", Handler: health.Liveness},
-		{Method: router.GET, Path: "/readyz", Handler: health.Readiness},
+		{Method: router.GET, Path: "/healthz", Handler: healthH.Liveness},
+		{Method: router.GET, Path: "/readyz", Handler: healthH.Readiness},
 	}); err != nil {
 		return fmt.Errorf("register health routes: %w", err)
 	}
@@ -99,6 +107,16 @@ func run() error {
 		return fmt.Errorf("register internal routes: %w", err)
 	}
 
+	// Job callbacks — signed job token auth.
+	callbacks := r.Group()
+	callbacks.Use(jobtokenmw.Auth(signer, log))
+	if err := callbacks.Create([]router.Subroute{
+		{Method: router.POST, Path: "/internal/jobs/start", Handler: callbackH.Start},
+		{Method: router.POST, Path: "/internal/jobs/complete", Handler: callbackH.Complete},
+	}); err != nil {
+		return fmt.Errorf("register callback routes: %w", err)
+	}
+
 	// API v1 — auth + rate limited by user ID (or IP if unauthenticated).
 	v1 := r.Group()
 	v1.Use(ratelimit.RateLimit(rdb, ratelimit.RateLimitConfig{
@@ -107,12 +125,12 @@ func run() error {
 	}, "api", log))
 	v1.Use(auth.Auth(log))
 	if err := v1.Create([]router.Subroute{
-		{Method: router.GET, Path: "/api/v1/repos/{repoID}", Handler: api.GetRepo},
-		{Method: router.GET, Path: "/api/v1/repos/{repoID}/jobs", Handler: api.ListJobs},
-		{Method: router.GET, Path: "/api/v1/repos/{repoID}/jobs/{jobID}", Handler: api.GetJob},
-		{Method: router.GET, Path: "/api/v1/repos/{repoID}/snapshots", Handler: api.ListSnapshots},
-		{Method: router.GET, Path: "/api/v1/repos/{repoID}/snapshots/latest", Handler: api.GetLatestSnapshot},
-		{Method: router.GET, Path: "/api/v1/snapshots/{snapshotID}", Handler: api.GetSnapshot},
+		{Method: router.GET, Path: "/api/v1/repos/{repoID}", Handler: apiH.GetRepo},
+		{Method: router.GET, Path: "/api/v1/repos/{repoID}/jobs", Handler: apiH.ListJobs},
+		{Method: router.GET, Path: "/api/v1/repos/{repoID}/jobs/{jobID}", Handler: apiH.GetJob},
+		{Method: router.GET, Path: "/api/v1/repos/{repoID}/snapshots", Handler: apiH.ListSnapshots},
+		{Method: router.GET, Path: "/api/v1/repos/{repoID}/snapshots/latest", Handler: apiH.GetLatestSnapshot},
+		{Method: router.GET, Path: "/api/v1/snapshots/{snapshotID}", Handler: apiH.GetSnapshot},
 	}); err != nil {
 		return fmt.Errorf("register api routes: %w", err)
 	}

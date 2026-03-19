@@ -148,6 +148,29 @@ func (q *Queries) GetJobByID(ctx context.Context, id pgtype.UUID) (Job, error) {
 	return i, err
 }
 
+const getJobForUpdate = `-- name: GetJobForUpdate :one
+SELECT id, repo_id, branch, commit_sha, delivery_id, status, error_message, created_at, updated_at, started_at, finished_at FROM jobs WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetJobForUpdate(ctx context.Context, id pgtype.UUID) (Job, error) {
+	row := q.db.QueryRow(ctx, getJobForUpdate, id)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.RepoID,
+		&i.Branch,
+		&i.CommitSha,
+		&i.DeliveryID,
+		&i.Status,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const getRepoForJob = `-- name: GetRepoForJob :one
 SELECT r.id, r.github_repo_id, r.installation_id, r.full_name, r.default_branch
 FROM repositories r
