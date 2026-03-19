@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/api/internal/db"
-	dbsqlc "github.com/LegationPro/zagforge-mvp-impl/api/internal/db/sqlc"
+	store "github.com/LegationPro/zagforge-mvp-impl/shared/go/store"
 	"github.com/LegationPro/zagforge-mvp-impl/shared/go/httputil"
 )
 
@@ -148,7 +148,7 @@ func (h *APIHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 		cursor = pgtype.Timestamptz{Time: t, Valid: true}
 	}
 
-	jobs, err := h.db.Queries.ListJobsByRepo(r.Context(), dbsqlc.ListJobsByRepoParams{
+	jobs, err := h.db.Queries.ListJobsByRepo(r.Context(), store.ListJobsByRepoParams{
 		RepoID:    repoID,
 		CreatedAt: cursor,
 		Limit:     limit,
@@ -204,7 +204,7 @@ func (h *APIHandler) ListSnapshots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snaps, err := h.db.Queries.GetSnapshotsByBranch(r.Context(), dbsqlc.GetSnapshotsByBranchParams{
+	snaps, err := h.db.Queries.GetSnapshotsByBranch(r.Context(), store.GetSnapshotsByBranchParams{
 		RepoID: repoID,
 		Branch: branch,
 	})
@@ -230,7 +230,7 @@ func (h *APIHandler) GetLatestSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snap, err := h.db.Queries.GetLatestSnapshot(r.Context(), dbsqlc.GetLatestSnapshotParams{
+	snap, err := h.db.Queries.GetLatestSnapshot(r.Context(), store.GetLatestSnapshotParams{
 		RepoID: repoID,
 		Branch: branch,
 	})

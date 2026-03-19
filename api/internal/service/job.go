@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	dbpkg "github.com/LegationPro/zagforge-mvp-impl/shared/go/db"
-	dbsqlc "github.com/LegationPro/zagforge-mvp-impl/shared/go/db/sqlc"
+	store "github.com/LegationPro/zagforge-mvp-impl/shared/go/db/sqlc"
 	github "github.com/LegationPro/zagforge-mvp-impl/shared/go/provider/github"
 )
 
@@ -41,7 +41,7 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 		}
 	}()
 
-	qtx := dbsqlc.New(tx)
+	qtx := store.New(tx)
 
 	// 1. Look up registered repo — drop silently if not found.
 	repo, err := qtx.GetRepoByGithubID(ctx, event.RepoID)
@@ -66,7 +66,7 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 	}
 
 	// 3. Supersede any existing queued jobs for this branch.
-	active, err := qtx.GetActiveJobsForBranch(ctx, dbsqlc.GetActiveJobsForBranchParams{
+	active, err := qtx.GetActiveJobsForBranch(ctx, store.GetActiveJobsForBranchParams{
 		RepoID: repo.ID,
 		Branch: event.Branch,
 	})
@@ -74,7 +74,7 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 		return fmt.Errorf("get active jobs: %w", err)
 	}
 	for _, j := range active {
-		if j.Status == dbsqlc.JobStatusQueued {
+		if j.Status == store.JobStatusQueued {
 			if err := qtx.MarkJobSuperseded(ctx, j.ID); err != nil {
 				return fmt.Errorf("mark job superseded: %w", err)
 			}
@@ -82,7 +82,7 @@ func (s *JobService) HandlePush(ctx context.Context, event github.WebhookEvent, 
 	}
 
 	// 4. Insert new queued job.
-	job, err := qtx.CreateJob(ctx, dbsqlc.CreateJobParams{
+	job, err := qtx.CreateJob(ctx, store.CreateJobParams{
 		RepoID:    repo.ID,
 		Branch:    event.Branch,
 		CommitSha: event.CommitSHA,
