@@ -103,3 +103,12 @@ tasks:
         desc: Tail logs for the API service
         cmds:
             - "{{.DC}} logs -f api"
+
+    test:integration:
+        desc: Run integration tests (requires running Postgres)
+        cmds:
+            - "{{.DC}} up -d postgres"
+            - "{{.DC}} run --rm migrate"
+            - go test -tags=integration -race -v ./api/internal/integration/...
+        env:
+            TEST_DATABASE_URL: postgres://zagforge:zagforge@localhost:5432/zagforge?sslmode=disable

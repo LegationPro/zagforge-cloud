@@ -17,7 +17,7 @@ echo "✅ gofmt (auto-formatted)"
 
 # Run golangci-lint on changed packages
 PACKAGES=$(echo "$STAGED_GO_FILES" | xargs -I{} dirname {} | sort -u | sed 's|^|./|')
-if ! golangci-lint run $PACKAGES 2>&1; then
+if ! golangci-lint run --build-tags integration $PACKAGES 2>&1; then
     echo ""
     echo "❌ golangci-lint: fix the issues above before committing"
     exit 1
