@@ -69,6 +69,15 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
       env {
+        name = "REDIS_URL"
+        value_source {
+          secret_key_ref {
+            secret  = "redis-url"
+            version = "latest"
+          }
+        }
+      }
+      env {
         name = "GITHUB_APP_PRIVATE_KEY"
         value_source {
           secret_key_ref {

@@ -14,6 +14,7 @@ const maxPayloadBytes = 25 * 1024 * 1024
 
 var _ http.Handler = (*Handler)(nil)
 
+// Only trigger events on "push"
 var supportedEvents = map[string]bool{
 	"push": true,
 }

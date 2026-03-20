@@ -5,6 +5,7 @@ locals {
     "hmac-signing-key",
     "clerk-secret-key",
     "database-url",
+    "redis-url",
     "watchdog-secret",
   ]
 
