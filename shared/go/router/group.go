@@ -29,16 +29,16 @@ type Subroute struct {
 
 type Group struct {
 	mux *chi.Mux
-	mw  func(http.Handler) http.Handler
+	mws []func(http.Handler) http.Handler
 }
 
 func NewGroup(mux *chi.Mux) *Group {
 	return &Group{mux: mux}
 }
 
-// Use sets the middleware applied to all subroutes in this group.
+// Use appends middleware to the group's middleware stack.
 func (g *Group) Use(mw func(http.Handler) http.Handler) {
-	g.mw = mw
+	g.mws = append(g.mws, mw)
 }
 
 // Create registers all subroutes on the group's mux.
@@ -66,9 +66,11 @@ func (g *Group) Create(subroutes []Subroute) error {
 		}
 	}
 
-	if g.mw != nil {
+	if len(g.mws) > 0 {
 		g.mux.Group(func(r chi.Router) {
-			r.Use(g.mw)
+			for _, mw := range g.mws {
+				r.Use(mw)
+			}
 			register(r)
 		})
 	} else {

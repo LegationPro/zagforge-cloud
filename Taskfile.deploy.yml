@@ -21,7 +21,7 @@ tasks:
             - docker push {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
 
     deploy:
-        desc: "Deploy a commit to Cloud Run. Usage: task deploy:deploy SERVICE=api [ENV=prod] [COMMIT=abc123]"
+        desc: "Deploy a Cloud Run service. Usage: task deploy:deploy SERVICE=api [ENV=prod] [COMMIT=abc123]"
         requires:
             vars: [SERVICE]
         vars:
@@ -31,6 +31,21 @@ tasks:
             - echo "Deploying {{.SERVICE}} at {{.COMMIT}} to {{.ENV}} ({{.PROJECT_ID}} / {{.REGION}})..."
             - >
                 gcloud run deploy zagforge-{{.SERVICE}}
+                --image {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
+                --region {{.REGION}}
+                --project {{.PROJECT_ID}}
+
+    deploy-job:
+        desc: "Deploy a Cloud Run job. Usage: task deploy:deploy-job SERVICE=worker [ENV=prod] [COMMIT=abc123]"
+        requires:
+            vars: [SERVICE]
+        vars:
+            COMMIT:
+                sh: git rev-parse HEAD
+        cmds:
+            - echo "Deploying job {{.SERVICE}} at {{.COMMIT}} to {{.ENV}} ({{.PROJECT_ID}} / {{.REGION}})..."
+            - >
+                gcloud run jobs update zagforge-{{.SERVICE}}
                 --image {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
                 --region {{.REGION}}
                 --project {{.PROJECT_ID}}

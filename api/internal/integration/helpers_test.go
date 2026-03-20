@@ -61,7 +61,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	healthRoutes := r.Group()
 	_ = healthRoutes.Create([]router.Subroute{
-		{Method: router.GET, Path: "/healthz", Handler: healthH.Liveness},
+		{Method: router.GET, Path: "/livez", Handler: healthH.Liveness},
 		{Method: router.GET, Path: "/readyz", Handler: healthH.Readiness},
 	})
 

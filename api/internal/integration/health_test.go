@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-func TestHealthz_returns200(t *testing.T) {
+func TestLivez_returns200(t *testing.T) {
 	env := newTestEnv(t)
 
-	resp := env.get(t, "/healthz")
+	resp := env.get(t, "/livez")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

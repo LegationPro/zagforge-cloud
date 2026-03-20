@@ -141,7 +141,7 @@ resource "google_cloud_run_v2_service" "api" {
 
       liveness_probe {
         http_get {
-          path = "/healthz"
+          path = "/readyz"
         }
         period_seconds = 30
       }
