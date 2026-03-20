@@ -93,11 +93,12 @@ module "api" {
   gcs_bucket           = module.storage.bucket_name
   cloud_tasks_project  = var.project_id
   cloud_tasks_location = var.region
-  cloud_tasks_queue    = module.queue.queue_name
-  cors_allowed_origins = var.cors_allowed_origins
+  cloud_tasks_queue      = module.queue.queue_name
+  cloud_tasks_worker_url = module.worker.url
+  cors_allowed_origins   = var.cors_allowed_origins
 }
 
-# --- Worker (Cloud Run Job) ---
+# --- Worker (Cloud Run Service) ---
 module "worker" {
   source = "./modules/worker"
 
@@ -107,7 +108,7 @@ module "worker" {
   environment   = var.environment
   github_app_id = var.github_app_id
   gcs_bucket    = module.storage.bucket_name
-  api_url       = module.api.url
+  api_url       = var.api_url
 }
 
 # --- Cloud Scheduler (Watchdog) ---

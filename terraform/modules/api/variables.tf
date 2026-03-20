@@ -48,6 +48,11 @@ variable "cloud_tasks_queue" {
   type = string
 }
 
+variable "cloud_tasks_worker_url" {
+  description = "Worker Cloud Run URL for Cloud Tasks to target"
+  type        = string
+}
+
 variable "cors_allowed_origins" {
   type    = string
   default = ""

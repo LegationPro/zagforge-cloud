@@ -30,6 +30,13 @@ variable "github_app_slug" {
   type        = string
 }
 
+# API URL (for worker callback — breaks circular dep between api/worker modules)
+variable "api_url" {
+  description = "API Cloud Run URL for worker callbacks"
+  type        = string
+  default     = ""
+}
+
 # CORS
 variable "cors_allowed_origins" {
   description = "Comma-separated allowed origins for CORS"

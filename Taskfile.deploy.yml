@@ -17,7 +17,7 @@ tasks:
             COMMIT:
                 sh: git rev-parse HEAD
         cmds:
-            - docker build -f {{.SERVICE}}/Dockerfile -t {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}} .
+            - docker build --platform linux/amd64 -f {{.SERVICE}}/Dockerfile -t {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}} .
             - docker push {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
 
     deploy:
