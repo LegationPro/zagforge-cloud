@@ -1,0 +1,11 @@
+environment         = "prod"
+project_id          = "zagforge"
+region              = "europe-west1"
+database_provider   = "cloudsql"
+cloud_sql_tier      = "db-custom-2-8192"
+redis_provider      = "memorystore"
+redis_memory_gb     = 2
+api_min_instances   = 1
+api_max_instances   = 10
+cloud_armor_enabled = true
+domain              = "api.zagforge.com"

@@ -7,3 +7,8 @@ zigzag-reports
 .DS_Store
 tmp
 cmd
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
