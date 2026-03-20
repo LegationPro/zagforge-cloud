@@ -12,7 +12,7 @@ on:
 env:
   PROJECT_ID: zagforge
   REGION: us-central1
-  JOB: zagforge-worker
+  SERVICE: zagforge-worker
   REGISTRY: us-central1-docker.pkg.dev/zagforge/zagforge
 
 jobs:
@@ -54,8 +54,9 @@ jobs:
           cache-to: type=gha,scope=worker,mode=max
           platforms: linux/amd64
 
-      - name: Update Cloud Run Job image
-        run: |
-          gcloud run jobs update ${{ env.JOB }} \
-            --image ${{ env.REGISTRY }}/worker:${{ github.sha }} \
-            --region ${{ env.REGION }}
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          image: ${{ env.REGISTRY }}/worker:${{ github.sha }}
+          region: ${{ env.REGION }}
