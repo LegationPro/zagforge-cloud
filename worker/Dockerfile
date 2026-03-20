@@ -24,7 +24,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /bin/worker ./worker/cmd/
 
 FROM alpine:3.21
-RUN apk add --no-cache git gcompat ca-certificates
+RUN apk add --no-cache git gcompat ca-certificates && \
+    mkdir -p /data/reports && chown nobody:nobody /data/reports
 COPY --from=build /usr/local/bin/zigzag /usr/local/bin/zigzag
 COPY --from=build /bin/worker /bin/worker
 USER nobody
