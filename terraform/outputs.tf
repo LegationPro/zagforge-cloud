@@ -32,3 +32,13 @@ output "load_balancer_ip" {
   description = "Load balancer IP address (if networking is enabled)"
   value       = module.networking.load_balancer_ip
 }
+
+output "wif_provider" {
+  description = "WIF provider name — set as WIF_PROVIDER GitHub secret"
+  value       = module.wif.provider_name
+}
+
+output "wif_service_account" {
+  description = "WIF service account — set as WIF_SERVICE_ACCOUNT GitHub secret"
+  value       = module.wif.service_account_email
+}

@@ -2,9 +2,14 @@
 .secret/
 .reports/
 .git/
+.github/
 .bin/
 .cache
 .DS_Store
 *.md
 docs/
+architecture/
+terraform/
+docker/
 zigzag-reports/
+tmp/

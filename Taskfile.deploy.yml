@@ -1,0 +1,109 @@
+version: "3"
+
+vars:
+    PROJECT_ID: zagforge
+    REGION: us-central1
+    REGISTRY: "{{.REGION}}-docker.pkg.dev/{{.PROJECT_ID}}/zagforge"
+
+tasks:
+    image-push:
+        desc: "Build and push a service image. Usage: task deploy:image-push SERVICE=api"
+        requires:
+            vars: [SERVICE]
+        vars:
+            COMMIT:
+                sh: git rev-parse HEAD
+        cmds:
+            - docker build -f {{.SERVICE}}/Dockerfile -t {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}} .
+            - docker push {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
+
+    deploy:
+        desc: "Deploy a commit to Cloud Run. Usage: task deploy:deploy SERVICE=api [COMMIT=abc123]"
+        requires:
+            vars: [SERVICE]
+        vars:
+            COMMIT:
+                sh: git rev-parse HEAD
+        cmds:
+            - echo "Deploying {{.SERVICE}} at {{.COMMIT}}..."
+            - >
+                gcloud run deploy zagforge-{{.SERVICE}}
+                --image {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
+                --region {{.REGION}}
+                --project {{.PROJECT_ID}}
+
+    revisions:
+        desc: "List recent revisions. Usage: task deploy:revisions SERVICE=api"
+        requires:
+            vars: [SERVICE]
+        cmds:
+            - >
+                gcloud run revisions list
+                --service zagforge-{{.SERVICE}}
+                --region {{.REGION}}
+                --project {{.PROJECT_ID}}
+                --sort-by ~creationTimestamp
+                --limit 10
+
+    rollback:
+        desc: "Rollback to a revision. Usage: task deploy:rollback SERVICE=api REVISION=zagforge-api-00042-abc"
+        requires:
+            vars: [SERVICE, REVISION]
+        cmds:
+            - echo "Rolling back {{.SERVICE}} to {{.REVISION}}..."
+            - >
+                gcloud run services update-traffic zagforge-{{.SERVICE}}
+                --to-revisions {{.REVISION}}=100
+                --region {{.REGION}}
+                --project {{.PROJECT_ID}}
+
+    canary:
+        desc: "Route % traffic to latest. Usage: task deploy:canary SERVICE=api PERCENT=10"
+        requires:
+            vars: [SERVICE, PERCENT]
+        cmds:
+            - echo "Routing {{.PERCENT}}% traffic to latest revision of {{.SERVICE}}..."
+            - >
+                gcloud run services update-traffic zagforge-{{.SERVICE}}
+                --to-latest
+                --to-percentage {{.PERCENT}}
+                --region {{.REGION}}
+                --project {{.PROJECT_ID}}
+
+    status:
+        desc: "Show traffic split. Usage: task deploy:status SERVICE=api"
+        requires:
+            vars: [SERVICE]
+        cmds:
+            - >
+                gcloud run services describe zagforge-{{.SERVICE}}
+                --region {{.REGION}}
+                --project {{.PROJECT_ID}}
+                --format "yaml(status.traffic)"
+
+    logs:
+        desc: "Show recent Cloud Run logs. Usage: task deploy:logs SERVICE=api"
+        requires:
+            vars: [SERVICE]
+        cmds:
+            - >
+                gcloud logging read
+                "resource.type=cloud_run_revision AND resource.labels.service_name=zagforge-{{.SERVICE}}"
+                --project {{.PROJECT_ID}}
+                --limit 50
+                --format "table(timestamp, severity, textPayload)"
+
+    tf:plan:
+        desc: Terraform plan for dev
+        cmds:
+            - cd terraform && terraform plan -var-file=envs/dev.tfvars
+
+    tf:apply:
+        desc: Terraform apply for dev
+        cmds:
+            - cd terraform && terraform apply -var-file=envs/dev.tfvars
+
+    tf:output:
+        desc: Show Terraform outputs
+        cmds:
+            - cd terraform && terraform output

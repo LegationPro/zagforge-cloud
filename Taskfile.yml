@@ -4,6 +4,10 @@ vars:
     COMPOSE_FILE: docker-compose.dev.yaml
     DC: docker compose -f {{.COMPOSE_FILE}}
 
+includes:
+    deploy:
+        taskfile: Taskfile.deploy.yml
+
 tasks:
     build:
         desc: Run tests and build all binaries

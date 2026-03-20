@@ -14,6 +14,12 @@ variable "region" {
   default     = "us-central1"
 }
 
+# GitHub
+variable "github_repo" {
+  description = "GitHub repository in owner/repo format"
+  type        = string
+}
+
 # Database
 variable "database_provider" {
   description = "Database provider: neon or cloudsql"

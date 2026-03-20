@@ -111,6 +111,14 @@ module "scheduler" {
   api_service_account  = module.api.service_account_email
 }
 
+# --- Workload Identity Federation (GitHub Actions → GCP) ---
+module "wif" {
+  source = "./modules/wif"
+
+  project_id  = var.project_id
+  github_repo = var.github_repo
+}
+
 # --- Networking (LB + Cloud Armor) ---
 module "networking" {
   source = "./modules/networking"
