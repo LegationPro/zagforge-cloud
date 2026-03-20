@@ -34,6 +34,10 @@ func (c CloudTasksConfig) Enabled() bool {
 	return c.Project != "" && c.Location != "" && c.Queue != "" && c.WorkerURL != ""
 }
 
+type CORSConfig struct {
+	AllowedOrigins []string `env:"CORS_ALLOWED_ORIGINS" envSeparator:","`
+}
+
 type Config struct {
 	App        AppConfig        `envPrefix:""`
 	Server     ServerConfig     `envPrefix:""`
@@ -41,6 +45,7 @@ type Config struct {
 	Redis      RedisConfig      `envPrefix:""`
 	GCS        GCSConfig        `envPrefix:""`
 	CloudTasks CloudTasksConfig `envPrefix:""`
+	CORS       CORSConfig       `envPrefix:""`
 }
 
 func Load() (*Config, error) {

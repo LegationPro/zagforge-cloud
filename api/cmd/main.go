@@ -21,6 +21,7 @@ import (
 	"github.com/LegationPro/zagforge/api/internal/handler/health"
 	"github.com/LegationPro/zagforge/api/internal/handler/watchdog"
 	"github.com/LegationPro/zagforge/api/internal/handler/webhook"
+	corsmw "github.com/LegationPro/zagforge/api/internal/middleware/cors"
 	"github.com/LegationPro/zagforge/api/internal/middleware/auth"
 	"github.com/LegationPro/zagforge/api/internal/middleware/contenttype"
 	jobtokenmw "github.com/LegationPro/zagforge/api/internal/middleware/jobtoken"
@@ -117,6 +118,7 @@ func run() error {
 	watchdogH := watchdog.NewHandler(database, log)
 
 	r := router.New()
+	r.Use(corsmw.Cors(c.CORS.AllowedOrigins))
 
 	// Health — no auth, no rate limit.
 	healthRoutes := r.Group()
