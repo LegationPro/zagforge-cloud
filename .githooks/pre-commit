@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Only check staged Go files
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED_GO_FILES" ]; then
+    exit 0
+fi
+
+echo "Running pre-commit checks on Go files..."
+
+# Auto-format with gofmt and re-stage
+gofmt -w $STAGED_GO_FILES
+git add $STAGED_GO_FILES
+echo "✅ gofmt (auto-formatted)"
+
+# Run golangci-lint on changed packages
+PACKAGES=$(echo "$STAGED_GO_FILES" | xargs -I{} dirname {} | sort -u | sed 's|^|./|')
+if ! golangci-lint run --build-tags integration $PACKAGES 2>&1; then
+    echo ""
+    echo "❌ golangci-lint: fix the issues above before committing"
+    exit 1
+fi
+echo "✅ golangci-lint"
+
+# Run unit tests (excludes integration tests)
+if ! go test -race ./api/... ./shared/go/... ./worker/... 2>&1; then
+    echo ""
+    echo "❌ tests: fix the failing tests before committing"
+    exit 1
+fi
+echo "✅ tests"

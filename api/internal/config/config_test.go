@@ -8,7 +8,7 @@ import (
 // allEnvVars lists every env var used by the API config.
 var allEnvVars = []string{
 	"APP_ENV", "ENV_FILE",
-	"GITHUB_APP_ID", "GITHUB_APP_WEBHOOK_SECRET", "GITHUB_APP_PRIVATE_KEY",
+	"GITHUB_APP_ID", "GITHUB_APP_SLUG", "GITHUB_APP_WEBHOOK_SECRET", "GITHUB_APP_PRIVATE_KEY",
 	"CLERK_SECRET_KEY", "HMAC_SIGNING_KEY", "WATCHDOG_SECRET",
 	"PORT",
 	"DATABASE_URL", "REDIS_URL",
@@ -42,6 +42,7 @@ func setEnv(t *testing.T, vars map[string]string) {
 func validEnv() map[string]string {
 	return map[string]string{
 		"GITHUB_APP_ID":             "2895893256896859",
+		"GITHUB_APP_SLUG":           "test-app",
 		"GITHUB_APP_WEBHOOK_SECRET": "secret",
 		"GITHUB_APP_PRIVATE_KEY":    "test-private-key",
 		"CLERK_SECRET_KEY":          "sk_test_xxx",
@@ -111,6 +112,7 @@ func TestLoad_privateKeyNewlineConversion(t *testing.T) {
 func TestLoad_missingRequired(t *testing.T) {
 	requiredVars := []string{
 		"GITHUB_APP_ID",
+		"GITHUB_APP_SLUG",
 		"GITHUB_APP_WEBHOOK_SECRET",
 		"GITHUB_APP_PRIVATE_KEY",
 		"CLERK_SECRET_KEY",

@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"github.com/LegationPro/zagforge/api/internal/middleware/auth"
 	"github.com/LegationPro/zagforge/shared/go/httputil"
 )
+
+var errRateLimitExceeded = errors.New("rate limit exceeded")
 
 // RateLimitConfig holds the sliding window parameters.
 type RateLimitConfig struct {
@@ -56,7 +59,7 @@ func RateLimit(rdb *redis.Client, cfg RateLimitConfig, prefix string, log *zap.L
 				log.Warn("rate limit exceeded", zap.String("key", key))
 				retryAfter := int(cfg.Window.Seconds())
 				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-				httputil.WriteJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+				httputil.ErrResponse(w, http.StatusTooManyRequests, errRateLimitExceeded)
 				return
 			}
 
