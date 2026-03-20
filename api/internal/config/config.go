@@ -23,10 +23,11 @@ type GCSConfig struct {
 }
 
 type CloudTasksConfig struct {
-	Project   string `env:"CLOUD_TASKS_PROJECT"`
-	Location  string `env:"CLOUD_TASKS_LOCATION"`
-	Queue     string `env:"CLOUD_TASKS_QUEUE"`
-	WorkerURL string `env:"CLOUD_TASKS_WORKER_URL"`
+	Project        string `env:"CLOUD_TASKS_PROJECT"`
+	Location       string `env:"CLOUD_TASKS_LOCATION"`
+	Queue          string `env:"CLOUD_TASKS_QUEUE"`
+	WorkerURL      string `env:"CLOUD_TASKS_WORKER_URL"`
+	ServiceAccount string `env:"CLOUD_TASKS_SERVICE_ACCOUNT"`
 }
 
 // Enabled returns true when all Cloud Tasks fields are set.

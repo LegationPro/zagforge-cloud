@@ -58,6 +58,10 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.cloud_tasks_worker_url
       }
       env {
+        name  = "CLOUD_TASKS_SERVICE_ACCOUNT"
+        value = var.cloud_tasks_service_account
+      }
+      env {
         name  = "CORS_ALLOWED_ORIGINS"
         value = var.cors_allowed_origins
       }

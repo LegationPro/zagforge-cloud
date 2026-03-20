@@ -94,7 +94,8 @@ module "api" {
   cloud_tasks_project  = var.project_id
   cloud_tasks_location = var.region
   cloud_tasks_queue      = module.queue.queue_name
-  cloud_tasks_worker_url = module.worker.url
+  cloud_tasks_worker_url      = module.worker.url
+  cloud_tasks_service_account = module.api.service_account_email
   cors_allowed_origins   = var.cors_allowed_origins
 }
 

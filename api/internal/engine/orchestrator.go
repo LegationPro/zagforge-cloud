@@ -18,10 +18,11 @@ type TaskEnqueuer interface {
 
 // CloudTasksConfig holds the configuration for Cloud Tasks.
 type CloudTasksConfig struct {
-	Project   string
-	Location  string
-	Queue     string
-	WorkerURL string
+	Project        string
+	Location       string
+	Queue          string
+	WorkerURL      string
+	ServiceAccount string // service account email for OIDC auth to worker
 }
 
 // CloudTasksEnqueuer dispatches jobs via Google Cloud Tasks.
@@ -65,6 +66,12 @@ func (e *CloudTasksEnqueuer) Enqueue(ctx context.Context, jobID string, jobToken
 					Url:        e.cfg.WorkerURL + "/run",
 					Headers:    map[string]string{"Content-Type": "application/json"},
 					Body:       body,
+					AuthorizationHeader: &taskspb.HttpRequest_OidcToken{
+						OidcToken: &taskspb.OidcToken{
+							ServiceAccountEmail: e.cfg.ServiceAccount,
+							Audience:            e.cfg.WorkerURL,
+						},
+					},
 				},
 			},
 		},

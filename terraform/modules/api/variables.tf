@@ -53,6 +53,11 @@ variable "cloud_tasks_worker_url" {
   type        = string
 }
 
+variable "cloud_tasks_service_account" {
+  description = "Service account email for Cloud Tasks OIDC auth to worker"
+  type        = string
+}
+
 variable "cors_allowed_origins" {
   type    = string
   default = ""

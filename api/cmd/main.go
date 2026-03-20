@@ -92,10 +92,11 @@ func run() error {
 	var enqueuer engine.TaskEnqueuer
 	if c.CloudTasks.Enabled() {
 		ct, err := engine.NewCloudTasksEnqueuer(context.Background(), engine.CloudTasksConfig{
-			Project:   c.CloudTasks.Project,
-			Location:  c.CloudTasks.Location,
-			Queue:     c.CloudTasks.Queue,
-			WorkerURL: c.CloudTasks.WorkerURL,
+			Project:        c.CloudTasks.Project,
+			Location:       c.CloudTasks.Location,
+			Queue:          c.CloudTasks.Queue,
+			WorkerURL:      c.CloudTasks.WorkerURL,
+			ServiceAccount: c.CloudTasks.ServiceAccount,
 		})
 		if err != nil {
 			return fmt.Errorf("create cloud tasks enqueuer: %w", err)
