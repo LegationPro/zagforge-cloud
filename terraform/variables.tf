@@ -20,6 +20,23 @@ variable "github_repo" {
   type        = string
 }
 
+variable "github_app_id" {
+  description = "GitHub App ID (non-sensitive)"
+  type        = string
+}
+
+variable "github_app_slug" {
+  description = "GitHub App slug for install URL"
+  type        = string
+}
+
+# CORS
+variable "cors_allowed_origins" {
+  description = "Comma-separated allowed origins for CORS"
+  type        = string
+  default     = ""
+}
+
 # Database
 variable "database_provider" {
   description = "Database provider: neon or cloudsql"

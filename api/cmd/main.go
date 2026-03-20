@@ -18,6 +18,7 @@ import (
 	"github.com/LegationPro/zagforge/api/internal/engine"
 	apihandler "github.com/LegationPro/zagforge/api/internal/handler/api"
 	"github.com/LegationPro/zagforge/api/internal/handler/callback"
+	"github.com/LegationPro/zagforge/api/internal/handler/githubauth"
 	"github.com/LegationPro/zagforge/api/internal/handler/health"
 	"github.com/LegationPro/zagforge/api/internal/handler/watchdog"
 	"github.com/LegationPro/zagforge/api/internal/handler/webhook"
@@ -116,6 +117,7 @@ func run() error {
 	apiH := apihandler.NewHandler(database, log)
 	callbackH := callback.NewHandler(database, ch, log)
 	watchdogH := watchdog.NewHandler(database, log)
+	githubAuthH := githubauth.NewHandler(database, c.App.GithubAppSlug, log)
 
 	r := router.New()
 	r.Use(corsmw.Cors(c.CORS.AllowedOrigins))
@@ -127,6 +129,15 @@ func run() error {
 		{Method: router.GET, Path: "/readyz", Handler: healthH.Readiness},
 	}); err != nil {
 		return fmt.Errorf("register health routes: %w", err)
+	}
+
+	// GitHub App OAuth — no auth, redirects to GitHub and handles callback.
+	authRoutes := r.Group()
+	if err := authRoutes.Create([]router.Subroute{
+		{Method: router.GET, Path: "/auth/github/install", Handler: githubAuthH.Install},
+		{Method: router.GET, Path: "/auth/github/callback", Handler: githubAuthH.Callback},
+	}); err != nil {
+		return fmt.Errorf("register github auth routes: %w", err)
 	}
 
 	// Webhooks — Content-Type + rate limited by IP, higher burst (GitHub sends bursts).

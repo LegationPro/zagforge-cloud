@@ -82,22 +82,32 @@ module "queue" {
 module "api" {
   source = "./modules/api"
 
-  project_id    = var.project_id
-  region        = var.region
-  name_prefix   = local.name_prefix
-  min_instances = var.api_min_instances
-  max_instances = var.api_max_instances
-  environment   = var.environment
+  project_id           = var.project_id
+  region               = var.region
+  name_prefix          = local.name_prefix
+  min_instances        = var.api_min_instances
+  max_instances        = var.api_max_instances
+  environment          = var.environment
+  github_app_id        = var.github_app_id
+  github_app_slug      = var.github_app_slug
+  gcs_bucket           = module.storage.bucket_name
+  cloud_tasks_project  = var.project_id
+  cloud_tasks_location = var.region
+  cloud_tasks_queue    = module.queue.queue_name
+  cors_allowed_origins = var.cors_allowed_origins
 }
 
 # --- Worker (Cloud Run Job) ---
 module "worker" {
   source = "./modules/worker"
 
-  project_id  = var.project_id
-  region      = var.region
-  name_prefix = local.name_prefix
-  environment = var.environment
+  project_id    = var.project_id
+  region        = var.region
+  name_prefix   = local.name_prefix
+  environment   = var.environment
+  github_app_id = var.github_app_id
+  gcs_bucket    = module.storage.bucket_name
+  api_url       = module.api.url
 }
 
 # --- Cloud Scheduler (Watchdog) ---

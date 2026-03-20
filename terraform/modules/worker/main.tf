@@ -26,9 +26,60 @@ resource "google_cloud_run_v2_job" "worker" {
           }
         }
 
+        # --- Non-sensitive config ---
         env {
           name  = "APP_ENV"
           value = var.environment
+        }
+        env {
+          name  = "GITHUB_APP_ID"
+          value = var.github_app_id
+        }
+        env {
+          name  = "GCS_BUCKET"
+          value = var.gcs_bucket
+        }
+        env {
+          name  = "API_BASE_URL"
+          value = var.api_url
+        }
+
+        # --- Secrets from Secret Manager ---
+        env {
+          name = "DATABASE_URL"
+          value_source {
+            secret_key_ref {
+              secret  = "database-url"
+              version = "latest"
+            }
+          }
+        }
+        env {
+          name = "GITHUB_APP_PRIVATE_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = "github-app-private-key"
+              version = "latest"
+            }
+          }
+        }
+        env {
+          name = "GITHUB_APP_WEBHOOK_SECRET"
+          value_source {
+            secret_key_ref {
+              secret  = "github-app-webhook-secret"
+              version = "latest"
+            }
+          }
+        }
+        env {
+          name = "HMAC_SIGNING_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = "hmac-signing-key"
+              version = "latest"
+            }
+          }
         }
       }
     }
