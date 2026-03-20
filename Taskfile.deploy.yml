@@ -1,13 +1,16 @@
 version: "3"
 
 vars:
-    PROJECT_ID: zagforge
-    REGION: us-central1
+    ENV: '{{.ENV | default "dev"}}'
+    PROJECT_ID:
+        sh: grep '^project_id' terraform/envs/{{.ENV}}.tfvars | sed 's/.*= *"\(.*\)"/\1/'
+    REGION:
+        sh: grep '^region' terraform/envs/{{.ENV}}.tfvars | sed 's/.*= *"\(.*\)"/\1/'
     REGISTRY: "{{.REGION}}-docker.pkg.dev/{{.PROJECT_ID}}/zagforge"
 
 tasks:
     image-push:
-        desc: "Build and push a service image. Usage: task deploy:image-push SERVICE=api"
+        desc: "Build and push a service image. Usage: task deploy:image-push SERVICE=api [ENV=prod]"
         requires:
             vars: [SERVICE]
         vars:
@@ -18,14 +21,14 @@ tasks:
             - docker push {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
 
     deploy:
-        desc: "Deploy a commit to Cloud Run. Usage: task deploy:deploy SERVICE=api [COMMIT=abc123]"
+        desc: "Deploy a commit to Cloud Run. Usage: task deploy:deploy SERVICE=api [ENV=prod] [COMMIT=abc123]"
         requires:
             vars: [SERVICE]
         vars:
             COMMIT:
                 sh: git rev-parse HEAD
         cmds:
-            - echo "Deploying {{.SERVICE}} at {{.COMMIT}}..."
+            - echo "Deploying {{.SERVICE}} at {{.COMMIT}} to {{.ENV}} ({{.PROJECT_ID}} / {{.REGION}})..."
             - >
                 gcloud run deploy zagforge-{{.SERVICE}}
                 --image {{.REGISTRY}}/{{.SERVICE}}:{{.COMMIT}}
@@ -33,7 +36,7 @@ tasks:
                 --project {{.PROJECT_ID}}
 
     revisions:
-        desc: "List recent revisions. Usage: task deploy:revisions SERVICE=api"
+        desc: "List recent revisions. Usage: task deploy:revisions SERVICE=api [ENV=prod]"
         requires:
             vars: [SERVICE]
         cmds:
@@ -46,11 +49,11 @@ tasks:
                 --limit 10
 
     rollback:
-        desc: "Rollback to a revision. Usage: task deploy:rollback SERVICE=api REVISION=zagforge-api-00042-abc"
+        desc: "Rollback to a revision. Usage: task deploy:rollback SERVICE=api REVISION=zagforge-api-00042-abc [ENV=prod]"
         requires:
             vars: [SERVICE, REVISION]
         cmds:
-            - echo "Rolling back {{.SERVICE}} to {{.REVISION}}..."
+            - echo "Rolling back {{.SERVICE}} to {{.REVISION}} in {{.ENV}}..."
             - >
                 gcloud run services update-traffic zagforge-{{.SERVICE}}
                 --to-revisions {{.REVISION}}=100
@@ -58,11 +61,11 @@ tasks:
                 --project {{.PROJECT_ID}}
 
     canary:
-        desc: "Route % traffic to latest. Usage: task deploy:canary SERVICE=api PERCENT=10"
+        desc: "Route % traffic to latest. Usage: task deploy:canary SERVICE=api PERCENT=10 [ENV=prod]"
         requires:
             vars: [SERVICE, PERCENT]
         cmds:
-            - echo "Routing {{.PERCENT}}% traffic to latest revision of {{.SERVICE}}..."
+            - echo "Routing {{.PERCENT}}% traffic to latest revision of {{.SERVICE}} in {{.ENV}}..."
             - >
                 gcloud run services update-traffic zagforge-{{.SERVICE}}
                 --to-latest
@@ -71,7 +74,7 @@ tasks:
                 --project {{.PROJECT_ID}}
 
     status:
-        desc: "Show traffic split. Usage: task deploy:status SERVICE=api"
+        desc: "Show traffic split. Usage: task deploy:status SERVICE=api [ENV=prod]"
         requires:
             vars: [SERVICE]
         cmds:
@@ -82,7 +85,7 @@ tasks:
                 --format "yaml(status.traffic)"
 
     logs:
-        desc: "Show recent Cloud Run logs. Usage: task deploy:logs SERVICE=api"
+        desc: "Show recent Cloud Run logs. Usage: task deploy:logs SERVICE=api [ENV=prod]"
         requires:
             vars: [SERVICE]
         cmds:
@@ -94,14 +97,14 @@ tasks:
                 --format "table(timestamp, severity, textPayload)"
 
     tf:plan:
-        desc: Terraform plan for dev
+        desc: "Terraform plan. Usage: task deploy:tf:plan [ENV=staging]"
         cmds:
-            - cd terraform && terraform plan -var-file=envs/dev.tfvars
+            - cd terraform && terraform plan -var-file=envs/{{.ENV}}.tfvars
 
     tf:apply:
-        desc: Terraform apply for dev
+        desc: "Terraform apply. Usage: task deploy:tf:apply [ENV=staging]"
         cmds:
-            - cd terraform && terraform apply -var-file=envs/dev.tfvars
+            - cd terraform && terraform apply -var-file=envs/{{.ENV}}.tfvars
 
     tf:output:
         desc: Show Terraform outputs
